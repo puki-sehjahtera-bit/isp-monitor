@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflared tunnel — ISP Monitor (URL tetap)
+After=network.target isp-monitor.service
+Requires=isp-monitor.service
+
+[Service]
+Type=simple
+User=bahcron
+ExecStart=/usr/local/bin/cloudflared tunnel run isp-monitor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

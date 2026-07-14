@@ -58,6 +58,38 @@ sudo systemctl enable --now isp-monitor-probe
 ```
 Cek log: `journalctl -u isp-monitor -f`.
 
+## Akses dari HP / publik (Cloudflare Tunnel)
+
+Biar bisa dibuka dari mana aja (terutama HP di luar LAN) pakai tunnel.
+
+**Quick tunnel (URL berubah tiap restart, gak perlu akun):**
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+**Named tunnel (URL TETAP, butuh akun Cloudflare gratis):**
+```bash
+# 1. install binary (contoh Debian/Ubuntu):
+sudo curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+sudo chmod +x /usr/local/bin/cloudflared
+
+# 2. login (interaktif, buka browser untuk OAuth) — sekali saja:
+cloudflared tunnel login
+
+# 3. buat tunnel (isi nama bebas):
+cloudflared tunnel create isp-monitor
+
+# 4. jadikan service (auto-start + restart kalau mati):
+sudo cp cloudflared.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now isp-monitor cloudflared
+```
+URL tetap: `https://<id-tunnel>.cfargotunnel.com` (atau custom domain lewat
+`cloudflared tunnel route dns isp-monitor namadomain.com`).
+
+> Catatan: kalau pakai systemd untuk server, matikan keepalive cron biar gak
+> dobel: `crontab -e` lalu hapus baris `*/1 * * * * .../keepalive.sh`.
+
 ## REST API
 
 | Method | Endpoint | Keterangan |
