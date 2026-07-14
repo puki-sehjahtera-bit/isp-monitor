@@ -1,0 +1,16 @@
+[Unit]
+Description=ISP Monitor — Global ISP Network Monitoring
+After=network.target
+
+[Service]
+Type=simple
+User=bahcron
+WorkingDirectory=/home/bahcron/isp-monitor
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/home/bahcron/isp-monitor/.env
+ExecStart=/home/bahcron/isp-monitor/venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

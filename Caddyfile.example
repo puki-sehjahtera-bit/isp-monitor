@@ -1,0 +1,16 @@
+# Reverse proxy publikasi ISP Monitor ke domain (contoh Caddy, auto-HTTPS)
+# Simpan sebagai Caddyfile, jalankan: caddy run
+
+isp.example.com {
+    reverse_proxy localhost:8000
+}
+
+# Atau nginx:
+# server {
+#     listen 80; server_name isp.example.com;
+#     location / {
+#         proxy_pass http://127.0.0.1:8000;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#     }
+# }

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# App data & secrets
+data/
+.env
+*.db
+*.db-wal
+*.db-shm
+
+# OS / editor
+.DS_Store
+*.log
