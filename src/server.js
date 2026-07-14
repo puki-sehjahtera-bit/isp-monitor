@@ -4,15 +4,36 @@ const path = require("path");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const rateLimit = require("express-rate-limit");
 const db = require("./db");
 const { seed } = require("./seed");
 const worker = require("./worker");
+const twitter = require("./twitter");
+const backup = require("./backup");
 
 const API_HOST = process.env.API_HOST || "0.0.0.0";
 const PORT = parseInt(process.env.PORT || process.env.API_PORT || "8000", 10);
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+
+// Lindungi endpoint tulis. Kalau ADMIN_TOKEN kosong -> terbuka (mode dev).
+function requireAdmin(req, res, next) {
+  if (!ADMIN_TOKEN) return next();
+  const auth = req.headers.authorization || "";
+  if (auth === `Bearer ${ADMIN_TOKEN}` || req.query.token === ADMIN_TOKEN) return next();
+  return res.status(401).json({ error: "Admin token diperlukan" });
+}
 
 const app = express();
 app.use(express.json());
+
+const apiLimiter = rateLimit({
+  windowMs: 60000, max: 120, standardHeaders: true, legacyHeaders: false,
+  message: { error: "Terlalu banyak request — coba lagi nanti" },
+});
+const writeLimiter = rateLimit({
+  windowMs: 60000, max: 30, standardHeaders: true, legacyHeaders: false,
+  message: { error: "Terlalu banyak request — coba lagi nanti" },
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -22,8 +43,12 @@ app.use(express.static(PUBLIC));
 
 app.get("/", (_req, res) => res.sendFile(path.join(PUBLIC, "index.html")));
 app.get("/ui", (_req, res) => res.sendFile(path.join(PUBLIC, "index.html")));
+app.get("/admin", (_req, res) => res.sendFile(path.join(PUBLIC, "admin.html")));
 
 app.get("/healthz", (_req, res) => res.json({ status: "ok", service: "isp-monitor-api" }));
+
+// ── Rate limit ──
+app.use(["/isps", "/dashboard", "/regions", "/stats", "/history", "/status", "/probes", "/export", "/health", "/report"], apiLimiter);
 
 // ── ISP CRUD ──
 app.get("/isps", (req, res) => {
@@ -35,7 +60,7 @@ app.get("/isps", (req, res) => {
   res.json(isps);
 });
 
-app.post("/isps", (req, res) => {
+app.post("/isps", requireAdmin, (req, res) => {
   const id = db.getOrCreateIsp(req.body);
   res.status(201).json({ ...req.body, id });
 });
@@ -46,13 +71,13 @@ app.get("/isps/:id", (req, res) => {
   res.json(isp);
 });
 
-app.put("/isps/:id", (req, res) => {
+app.put("/isps/:id", requireAdmin, (req, res) => {
   if (!db.getIspById(Number(req.params.id))) return res.status(404).json({ error: "ISP tidak ditemukan" });
   db.updateIsp(Number(req.params.id), req.body);
   res.json(db.getIspById(Number(req.params.id)));
 });
 
-app.delete("/isps/:id", (req, res) => {
+app.delete("/isps/:id", requireAdmin, (req, res) => {
   db.deleteIsp(Number(req.params.id));
   res.status(204).end();
 });
@@ -82,14 +107,14 @@ app.get("/status/:id", (req, res) => {
 });
 
 // ── Manual trigger ──
-app.post("/health/:id", async (req, res) => {
+app.post("/health/:id", requireAdmin, async (req, res) => {
   const isp = db.getIspById(Number(req.params.id));
   if (!isp) return res.status(404).json({ error: "ISP tidak ditemukan" });
   const payload = await worker.checkSingleNow(isp, broadcast);
   res.json({ status: "done", ...payload });
 });
 
-app.post("/health/all", async (_req, res) => {
+app.post("/health/all", requireAdmin, async (_req, res) => {
   const isps = db.getAllIsps();
   for (const isp of isps) worker.checkSingleNow(isp, broadcast);
   res.json({ status: "started", isp_count: isps.length });
@@ -120,7 +145,51 @@ app.post("/report", async (req, res) => {
 // Metadata probe (ASN/lokasi tiap region)
 app.get("/probes", (_req, res) => res.json(db.getProbesMeta()));
 
-app.post("/worker/start", (req, res) => {
+// ── Export ──
+app.get("/export/json", (_req, res) => {
+  res.setHeader("Content-Disposition", `attachment; filename="isp-monitor-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(db.getDashboard());
+});
+
+app.get("/export/csv", (_req, res) => {
+  const data = db.getDashboard();
+  const headers = ["id", "name", "country", "uptime", "checks", "online", "avg_latency"];
+  const rows = data.map((s) => {
+    const c = s.cache || {};
+    const online = s.recent_status?.some((r) => r.status) ? 1 : 0;
+    return [s.id, s.name, s.country, c.uptime_percent ?? "", c.total_checks ?? "", online, c.avg_latency_ms ?? ""];
+  });
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="isp-monitor-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
+// Export snapshot semua ISP
+function snapshotRows() {
+  const rows = db.getDashboard();
+  return rows.map((r) => {
+    const st = r.recent_status && r.recent_status[0];
+    return {
+      id: r.id, name: r.name, country: r.country, region: r.region, category: r.category, asn: r.asn,
+      status: st ? (st.status ? "UP" : "DOWN") : "",
+      uptime_percent: r.cache ? r.cache.uptime_percent : "",
+      avg_latency_ms: r.cache ? Math.round(r.cache.avg_latency || 0) : "",
+    };
+  });
+}
+app.get("/export/snapshot.csv", (_req, res) => {
+  const rows = snapshotRows();
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["id", "name", "country", "region", "category", "asn", "status", "uptime_percent", "avg_latency_ms"];
+  const lines = [head.join(",")];
+  for (const r of rows) lines.push(head.map((k) => esc(r[k])).join(","));
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="isp-monitor.csv"');
+  res.send(lines.join("\n"));
+});
+
+app.post("/worker/start", requireAdmin, (req, res) => {
   startBackgroundWorker();
   res.status(202).json({ status: "worker started" });
 });
@@ -179,8 +248,20 @@ async function main() {
   startBackgroundWorker();
   setInterval(() => worker.evaluateAlerts().catch(() => {}), 60 * 1000);
 
+  const PRUNE_DAYS = Math.max(1, parseInt(process.env.PRUNE_DAYS || "30", 10));
+  const prune = () => { const n = db.pruneOldHistory(PRUNE_DAYS); if (n) console.log(`Prune: ${n} baris > ${PRUNE_DAYS} hari dihapus`); };
+  prune();
+  setInterval(prune, 24 * 60 * 60 * 1000);
+
+  // Auto backup DB
+  backup.scheduleBackup(parseInt(process.env.BACKUP_INTERVAL_MS || "3600000", 10));
+
+  // Tweet checker tiap 5 menit
+  setInterval(() => twitter.checkAndTweet().catch(() => {}), 300000);
+
   server.listen(PORT, API_HOST, () => {
     console.log(`ISP Monitor jalan di http://${API_HOST}:${PORT}`);
+    if (process.env.TWITTER_API_KEY) console.log("Twitter bot aktif");
   });
 }
 

@@ -65,6 +65,61 @@ const GLOBAL_ISPS = [
   ["Lintasarta", "ID", "Jakarta", "", "https://www.lintasarta.net", 17, "ISP korporat & satelit", "isp", "4787", ""],
   ["Mora Telematika", "ID", "Jakarta", "", "https://mora.tech", 18, "ISP data center & backhaul", "isp", "24521", ""],
   ["PSN", "ID", "Nasional", "", "https://www.psn.co.id", 19, "Pasifik Satelit Nusantara", "isp", "10216", ""],
+
+  // ── ISP Lokal / Regional Indonesia (kategori "local") ──
+  // Jawa
+  ["DBN Menaksopal", "ID", "Jawa Tengah", "", "https://dbn.co.id", 40, "ISP regional Jateng", "local", "", ""],
+  ["Chandella Lintas Media", "ID", "Jawa Timur", "", "https://chandella.co.id", 41, "ISP regional Jatim", "local", "", ""],
+  ["Buroq Gayatri", "ID", "Jawa Barat", "", "https://buroq.com", 42, "ISP regional Jabar", "local", "", ""],
+  ["Lintas Mediatama", "ID", "Jakarta", "", "", 43, "ISP lokal Jakarta", "local", "", ""],
+  ["Media Network Solution", "ID", "Jakarta", "", "", 44, "ISP lokal Jakarta", "local", "", ""],
+  ["Niaga Data", "ID", "Jakarta", "", "", 45, "ISP lokal Jakarta", "local", "", ""],
+  ["Mahameru Indo", "ID", "Jawa Timur", "", "", 46, "ISP regional Jatim", "local", "", ""],
+  ["Limanet", "ID", "Jawa Barat", "", "", 47, "ISP regional Jabar", "local", "", ""],
+  ["Solnet", "ID", "Jakarta", "", "", 48, "ISP lokal Jakarta", "local", "", ""],
+  ["Sarana Network", "ID", "Yogyakarta", "", "", 49, "ISP regional Jogja", "local", "", ""],
+  ["Indocenter", "ID", "Jakarta", "", "", 50, "ISP lokal Jakarta", "local", "", ""],
+  ["Cipto Jaya Informatika", "ID", "Jawa Tengah", "", "", 51, "ISP regional Jateng", "local", "", ""],
+  ["Adhika Network", "ID", "Jawa Barat", "", "", 52, "ISP regional Jabar", "local", "", ""],
+  ["Pramindo", "ID", "Jakarta", "", "", 53, "ISP lokal Jakarta", "local", "", ""],
+  ["WAW Net", "ID", "Yogyakarta", "", "", 54, "Wahyudi Anom W, ISP Jogja", "local", "", ""],
+  ["Lizard Net", "ID", "Yogyakarta", "", "", 55, "ISP Jogja", "local", "", ""],
+  ["Dian Net", "ID", "Jawa Tengah", "", "", 56, "ISP regional Jateng", "local", "", ""],
+  ["Akses Net", "ID", "Jawa Timur", "", "", 57, "ISP regional Jatim", "local", "", ""],
+  ["Cakra Net", "ID", "Jawa Barat", "", "", 58, "ISP regional Jabar", "local", "", ""],
+  ["Net Solution", "ID", "Jakarta", "", "", 59, "ISP lokal Jakarta", "local", "", ""],
+  ["Indo Internet", "ID", "Jakarta", "", "", 61, "ISP lokal Jakarta", "local", "", ""],
+  // Bali & Nusa Tenggara
+  ["Citra Media Nusantara", "ID", "Bali", "", "", 71, "ISP regional Bali", "local", "", ""],
+  ["Lombok Net", "ID", "Nusa Tenggara Barat", "", "", 73, "ISP regional Lombok", "local", "", ""],
+  ["Flores Net", "ID", "Nusa Tenggara Timur", "", "", 76, "ISP regional Flores", "local", "", ""],
+  // Sumatera
+  ["Sumatera Net", "ID", "Sumatera Utara", "", "", 77, "ISP regional Sumut", "local", "", ""],
+  ["Aceh Net", "ID", "Aceh", "", "", 79, "ISP regional Aceh", "local", "", ""],
+  ["Sumbar Net", "ID", "Sumatera Barat", "", "", 81, "ISP regional Sumbar", "local", "", ""],
+  ["Riau Net", "ID", "Riau", "", "", 83, "ISP regional Riau", "local", "", ""],
+  ["Batam Net", "ID", "Kepulauan Riau", "", "", 84, "ISP regional Batam", "local", "", ""],
+  ["Jambi Net", "ID", "Jambi", "", "", 86, "ISP regional Jambi", "local", "", ""],
+  ["Palembang Net", "ID", "Sumatera Selatan", "", "", 87, "ISP regional Palembang", "local", "", ""],
+  ["Lampung Net", "ID", "Lampung", "", "", 89, "ISP regional Lampung", "local", "", ""],
+  ["Bengkulu Net", "ID", "Bengkulu", "", "", 90, "ISP regional Bengkulu", "local", "", ""],
+  ["Babel Net", "ID", "Kepulauan Bangka Belitung", "", "", 91, "ISP regional Babel", "local", "", ""],
+  // Kalimantan
+  ["Kaltim Net", "ID", "Kalimantan Timur", "", "", 92, "ISP regional Kaltim", "local", "", ""],
+  ["Kalsel Net", "ID", "Kalimantan Selatan", "", "", 95, "ISP regional Kalsel", "local", "", ""],
+  ["Kalbar Net", "ID", "Kalimantan Barat", "", "", 97, "ISP regional Kalbar", "local", "", ""],
+  ["Kalteng Net", "ID", "Kalimantan Tengah", "", "", 99, "ISP regional Kalteng", "local", "", ""],
+  ["Kaltara Net", "ID", "Kalimantan Utara", "", "", 100, "ISP regional Kaltara", "local", "", ""],
+  // Sulawesi
+  ["Sulawesi Net", "ID", "Sulawesi Selatan", "", "", 101, "ISP regional Sulsel", "local", "", ""],
+  ["Sulut Net", "ID", "Sulawesi Utara", "", "", 105, "ISP regional Sulut", "local", "", ""],
+  ["Sulteng Net", "ID", "Sulawesi Tengah", "", "", 107, "ISP regional Sulteng", "local", "", ""],
+  ["Sultra Net", "ID", "Sulawesi Tenggara", "", "", 109, "ISP regional Sultra", "local", "", ""],
+  ["Gorontalo Net", "ID", "Gorontalo", "", "", 110, "ISP regional Gorontalo", "local", "", ""],
+  ["Sulbar Net", "ID", "Sulawesi Barat", "", "", 111, "ISP regional Sulbar", "local", "", ""],
+  // Maluku & Papua
+  ["Maluku Net", "ID", "Maluku", "", "", 112, "ISP regional Maluku", "local", "", ""],
+  ["Papua Net", "ID", "Papua", "", "", 115, "ISP regional Papua", "local", "", ""],
 ];
 
 function seed() {
@@ -76,7 +131,7 @@ function seed() {
     db.db.prepare("UPDATE isp_list SET asn=?, real_ip=?, status_url=? WHERE name=? AND country=?")
       .run(asn, real_ip, status_url, name, country);
   }
-  console.log(`Seed selesai: ${GLOBAL_ISPS.length} target (isp+cdn). ASN, real_ip & status_url terisi.`);
+  console.log(`Seed selesai: ${GLOBAL_ISPS.length} target (isp+cdn+local). ASN, real_ip & status_url terisi.`);
 }
 
 if (require.main === module) seed();

@@ -2,14 +2,15 @@
 const socket = io();
 const store = {};
 let openId = null, detailChart = null, globalChart = null;
-let countryFilter = "", catFilter = "", regionFilter = "";
+let countryFilter = "", catFilter = "", regionFilter = "", searchQuery = "", sortKey = "id";
 const globalPts = [];
 
 const FLAGS = { ID:"🇮🇩", US:"🇺🇸", PH:"🇵🇭", MY:"🇲🇾", SG:"🇸🇬", JP:"🇯🇵", DE:"🇩🇪", FR:"🇫🇷", BR:"🇧🇷", SE:"🇸🇪", Global:"🌐" };
 const CNAMES = { ID:"Indonesia", US:"Amerika", PH:"Filipina", MY:"Malaysia", SG:"Singapura", JP:"Jepang", DE:"Jerman", FR:"Prancis", BR:"Brazil", SE:"Swedia", Global:"Global" };
-const CAT_LABEL = { isp:"ISP", cdn:"CDN", cache:"CACHE" };
+const CAT_LABEL = { isp:"ISP", cdn:"CDN", cache:"CACHE", local:"LOKAL" };
 
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 const fmt = (ms) => (ms == null ? "–" : `${ms}ms`);
 const badge = (ok) => (ok ? '<span class="pill on">ONLINE</span>' : '<span class="pill off">OFFLINE</span>');
 function hostOf(url){ try { return new URL(url).hostname; } catch { return ""; } }
@@ -144,12 +145,27 @@ function renderRegionGroups() {
 function renderTable() {
   const grid = $("#grid");
   grid.innerHTML = "";
+  const q = searchQuery.toLowerCase();
   Object.values(store)
     .filter((s) => !catFilter || (s.category || "isp") === catFilter)
     .filter((s) => !regionFilter || (s.regions && s.regions[regionFilter]))
     .filter((s) => !countryFilter || s.country === countryFilter)
-    .sort((a, b) => a.id - b.id)
+    .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.country || "").toLowerCase().includes(q) || (s.isp_ip || "").includes(q) || (s.asn || "").includes(q))
+    .sort((a, b) => sortCards(a, b))
     .forEach((s) => grid.appendChild(cardEl(s)));
+}
+
+function sortCards(a, b) {
+  switch (sortKey) {
+    case "name": return a.name.localeCompare(b.name);
+    case "latency": return (a.latest?.combined?.latency ?? 1e9) - (b.latest?.combined?.latency ?? 1e9);
+    case "uptime": return (b.cache?.uptime_percent ?? 0) - (a.cache?.uptime_percent ?? 0);
+    case "status": {
+      const da = a.latest?.combined?.ok ? 0 : 1, db_ = b.latest?.combined?.ok ? 0 : 1;
+      return da - db_ || a.id - b.id;
+    }
+    default: return a.id - b.id;
+  }
 }
 
 function cardEl(s) {
@@ -182,8 +198,8 @@ function cardEl(s) {
 function updateRow(id) {
   const s = store[id]; if (!s) return;
   const ping = s.latest?.ping, http = s.latest?.http, comb = s.latest?.combined;
-  const tr = $(`#row-${id}`);
-  if (tr) tr.classList.toggle("row-off", !(comb?.ok)); tr?.classList.toggle("row-on", !!comb?.ok);
+  const card = $(`#card-${id}`);
+  if (card) { card.classList.toggle("row-off", !(comb?.ok)); card.classList.toggle("row-on", !!comb?.ok); }
   const set = (sel, html) => { const e = $(sel); if (e) e.innerHTML = html; };
   set(`#ping-${id}`, ping?.ok !== undefined ? `${ping.ok ? "✅" : "❌"} ${fmt(ping.latency)}` : "–");
   set(`#http-${id}`, http?.ok !== undefined ? `${http.ok ? "✅" : "❌"} ${fmt(http.latency)}` : "–");
@@ -306,7 +322,11 @@ window.manual = (id) => socket.emit("pingNow", { ispId: id });
 $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId = null; };
 $("#cat-filter").onchange = (e) => { catFilter = e.target.value; renderTable(); };
 $("#region-filter").onchange = (e) => { regionFilter = e.target.value; renderTable(); };
+$("#sort-filter").onchange = (e) => { sortKey = e.target.value; renderTable(); };
 $("#btn-refresh").onclick = loadDashboard;
+$("#search-input").oninput = (e) => { searchQuery = e.target.value; renderTable(); };
+$("#btn-export-csv").onclick = () => { window.open("/export/csv", "_blank"); };
+$("#btn-export-json").onclick = () => { window.open("/export/json", "_blank"); };
 
 // ── SSE fallback ──
 (() => {

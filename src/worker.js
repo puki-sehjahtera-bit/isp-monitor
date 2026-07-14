@@ -30,22 +30,40 @@ async function sendTelegram(text) {
   }
 }
 
+// Cooldown antar alert agar flap gak spam Telegram.
+const ALERT_COOLDOWN_MS = Math.max(0, parseInt(process.env.ALERT_COOLDOWN_MINUTES || "30", 10)) * 60 * 1000;
+const lastAlertAt = new Map(); // ispId -> timestamp alert down/degrared terakhir
+
+// State: 0=semua up, 1=semua down (global), 2=sebagian down (degraded).
 async function evaluateAlerts() {
   for (const isp of db.getAllIsps()) {
     const probes = db.getLatestByProbe(isp.id);
-    if (!Object.keys(probes).length) continue;
-    const up = Object.values(probes).filter(Boolean);
-    const globalDown = up.length === 0;
+    const keys = Object.keys(probes);
+    if (!keys.length) continue;
+    const up = keys.filter((k) => probes[k]);
+    const state = up.length === 0 ? 1 : up.length < keys.length ? 2 : 0;
     const prev = db.getAlertState(isp.id);
-    if (globalDown && prev !== 1) {
-      await sendTelegram(
-        `🔴 *DOWN* — ${isp.name} (${isp.country})\nSemua region gagal: ${Object.keys(probes).join(", ")}\nDianggap global-down.`
-      );
-      db.setAlertState(isp.id, true);
+    const now = Date.now();
+    const cooled = now - (lastAlertAt.get(isp.id) || 0) > ALERT_COOLDOWN_MS;
+    if (state === prev) continue;
+    if (state === 1) {
+      if (cooled) {
+        await sendTelegram(`🔴 *DOWN* — ${isp.name} (${isp.country})\nSemua region gagal: ${keys.join(", ")}`);
+        lastAlertAt.set(isp.id, now);
+      }
+      db.setAlertState(isp.id, 1);
       console.warn("ALERT DOWN:", isp.name);
-    } else if (!globalDown && prev === 1) {
-      await sendTelegram(`🟢 *RECOVERED* — ${isp.name} (${isp.country})\nSudah reachable dari: ${up.join(", ")}`);
-      db.setAlertState(isp.id, false);
+    } else if (state === 2) {
+      if (cooled) {
+        await sendTelegram(`🟡 *DEGRADED* — ${isp.name} (${isp.country})\nDown di: ${keys.filter((k) => !probes[k]).join(", ")}\nUp di: ${up.join(", ")}`);
+        lastAlertAt.set(isp.id, now);
+      }
+      db.setAlertState(isp.id, 2);
+      console.warn("ALERT DEGRADED:", isp.name);
+    } else {
+      await sendTelegram(`🟢 *RECOVERED* — ${isp.name} (${isp.country})\nSudah reachable dari: ${up.join(', ')}`);
+      lastAlertAt.set(isp.id, 0);
+      db.setAlertState(isp.id, 0);
       console.info("ALERT UP:", isp.name);
     }
   }
@@ -129,7 +147,6 @@ async function runCheck(isp, kind, onCheck) {
     if (kind === "http" && isp.http_url) db.updateIspStatus(isp.id, "http", res.ok, res.latency, PROBE);
     if (kind === "status" && isp.status_url) db.updateIspStatus(isp.id, "status", res.ok ? 1 : 0, res.incident ? 1 : 0, PROBE);
     db.updateIspStatus(isp.id, "combined", c.ok ? 1 : 0, c.latency, PROBE);
-    await evaluateAlerts();
   }
   if (onCheck) onCheck(fullPayload(isp));
 }

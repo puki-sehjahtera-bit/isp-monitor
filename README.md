@@ -64,14 +64,15 @@ Cek log: `journalctl -u isp-monitor -f`.
 |--------|----------|------------|
 | GET | `/healthz` | Health check |
 | GET | `/isps` | List ISP (`?country=ID&region=Java`) |
-| POST | `/isps` | Tambah ISP |
-| GET/PUT/DELETE | `/isps/{id}` | Detail/update/hapus ISP |
+| POST | `/isps` | Tambah ISP (**butuh `ADMIN_TOKEN`**) |
+| GET/PUT/DELETE | `/isps/{id}` | Detail/update/hapus ISP (tulis **butuh `ADMIN_TOKEN`**) |
 | GET | `/dashboard` | Dashboard semua ISP (+ breakdown per region) |
 | GET | `/regions` | List region/probe |
 | GET | `/stats` | Statistik keseluruhan |
 | GET | `/history/{id}` | Riwayat status (`?check_type=ping&limit=300`) |
-| POST | `/health/{id}` | Trigger cek manual 1 ISP (realtime) |
-| POST | `/health/all` | Trigger cek manual semua ISP |
+| GET | `/export.csv` | Export snapshot semua ISP ke CSV |
+| POST | `/health/{id}` | Trigger cek manual 1 ISP (realtime, **butuh `ADMIN_TOKEN`**) |
+| POST | `/health/all` | Trigger cek manual semua ISP (**butuh `ADMIN_TOKEN`**) |
 | POST | `/report` | Terima laporan probe region (butuh `REPORT_TOKEN`) |
 | POST | `/worker/start` | Start worker background |
 
@@ -140,12 +141,18 @@ global-down jadi valid.
 Lihat per region: kolom "Per Region" di UI, `GET /regions`, `GET /probes`,
 field `regions` di `GET /dashboard` (tiap region punya `asn`/`location`).
 
-## Notifikasi Telegram (alert global-down)
+## Notifikasi Telegram (alert per-ISP)
 
-Bot kirim pesan kalau satu ISP **down di SEMUA region** (global-down). Set env:
+Bot kirim pesan per state ISP:
+- 🔴 **DOWN** — gagal di semua region (global-down)
+- 🟡 **DEGRADED** — gagal di sebagian region
+- 🟢 **RECOVERED** — sudah reachable lagi
+
+Set env:
 ```
 TG_BOT_TOKEN=...   # dari @BotFather
 TG_CHAT_ID=...
+ALERT_COOLDOWN_MINUTES=30   # anti-spam kalau flap
 ```
 Kosong → notifikasi off (cuma log).
 

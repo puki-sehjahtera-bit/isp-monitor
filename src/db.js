@@ -212,11 +212,11 @@ function getAlertState(isp_id) {
   return r ? r.is_down : -1;
 }
 
-function setAlertState(isp_id, is_down) {
+function setAlertState(isp_id, state) {
   db.prepare(
     `INSERT INTO alert_state (isp_id, is_down, last_change) VALUES (?,?,CURRENT_TIMESTAMP)
      ON CONFLICT(isp_id) DO UPDATE SET is_down=excluded.is_down, last_change=CURRENT_TIMESTAMP`
-  ).run(isp_id, is_down ? 1 : 0);
+  ).run(isp_id, state | 0);
 }
 
 function getDashboard() {
@@ -273,6 +273,13 @@ function getDashboard() {
   });
 }
 
+function pruneOldHistory(days = 30) {
+  const info = db
+    .prepare("DELETE FROM isp_status_history WHERE recorded_at < datetime('now', ?)")
+    .run(`-${days} days`);
+  return info.changes;
+}
+
 function getStats() {
   const day = todayISO();
   const total_isps = getAllIsps().length;
@@ -313,4 +320,5 @@ module.exports = {
   setAlertState,
   getDashboard,
   getStats,
+  pruneOldHistory,
 };

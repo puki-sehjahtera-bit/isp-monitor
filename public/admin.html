@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin — ISP Monitor</title>
+<link rel="stylesheet" href="/style.css" />
+<style>
+.admin-wrap { max-width:900px; margin:0 auto; padding:20px; }
+.admin-wrap h1 { font-size:20px; margin-bottom:20px; }
+.form-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:14px; }
+.form-row input, .form-row select { background:var(--card-solid); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; }
+.form-row input::placeholder { color:var(--mut); }
+.admin-table { width:100%; border-collapse:collapse; font-size:13px; }
+.admin-table th, .admin-table td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
+.admin-table th { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+.admin-table td { vertical-align:middle; }
+.admin-table .del { color:var(--fail); cursor:pointer; }
+.admin-table tr:hover { background:rgba(88,166,255,.05); }
+.btn-primary { background:var(--acc); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; }
+.btn-primary:hover { filter:brightness(1.15); }
+.sm { font-size:11px; padding:4px 8px; border-radius:6px; background:transparent; border:1px solid var(--line); color:var(--txt); cursor:pointer; }
+.sm:hover { border-color:var(--acc); }
+.del-btn { color:var(--fail); }
+.del-btn:hover { border-color:var(--fail); }
+.back-link { display:inline-block; margin-bottom:16px; color:var(--acc); text-decoration:none; font-size:13px; }
+.back-link:hover { text-decoration:underline; }
+.tip { color:var(--mut); font-size:12px; margin-bottom:14px; }
+body { padding-bottom:80px; }
+</style>
+</head>
+<body>
+<div class="admin-wrap">
+  <a href="/" class="back-link">← Kembali ke Dashboard</a>
+  <h1>⚙️ Admin Panel — ISP Monitor</h1>
+  <div class="tip">Total: <b id="total-isps">0</b> ISP · <span id="last-refresh">–</span></div>
+
+  <section class="card">
+    <h2>Tambah / Edit ISP</h2>
+    <div class="form-row">
+      <input id="f-id" type="hidden" />
+      <input id="f-name" placeholder="Nama ISP *" />
+      <input id="f-country" placeholder="Negara * (ID/US/JP/etc)" />
+      <input id="f-region" placeholder="Region (Jakarta/Global/etc)" />
+      <input id="f-isp-ip" placeholder="ISP IP (ping target)" />
+      <input id="f-http-url" placeholder="HTTP URL (https://…)" />
+      <input id="f-asn" placeholder="ASN" />
+      <input id="f-real-ip" placeholder="Real IP (ping)" />
+      <input id="f-status-url" placeholder="Status URL (JSON)" />
+      <select id="f-category"><option value="isp">ISP</option><option value="cdn">CDN</option></select>
+      <input id="f-notes" placeholder="Keterangan" />
+    </div>
+    <div>
+      <button class="btn-primary" id="btn-save">💾 Simpan</button>
+      <button class="sm" id="btn-cancel" style="display:none">Batal</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Daftar ISP</h2>
+    <table class="admin-table">
+      <thead><tr><th>Nama</th><th>Negara</th><th>IP</th><th>ASN</th><th>Kategori</th><th>Aktif</th><th></th></tr></thead>
+      <tbody id="admin-tbody"></tbody>
+    </table>
+  </section>
+</div>
+<script>
+async function load() {
+  const r = await fetch("/isps?is_active=1");
+  const isps = await r.json();
+  const tbody = document.getElementById("admin-tbody");
+  tbody.innerHTML = isps.map((s) => `<tr>
+    <td><b>${s.name}</b></td>
+    <td>${s.country}</td>
+    <td style="font-size:11px;color:var(--mut)">${s.real_ip || s.isp_ip || "–"}</td>
+    <td>${s.asn ? "AS" + s.asn : "–"}</td>
+    <td>${s.category || "isp"}</td>
+    <td>${s.is_active ? "✅" : "❌"}</td>
+    <td>
+      <button class="sm" onclick="edit(${s.id})">✏️</button>
+      <button class="sm del-btn" onclick="del(${s.id})">🗑️</button>
+    </td>
+  </tr>`).join("");
+  document.getElementById("total-isps").textContent = isps.length;
+  document.getElementById("last-refresh").textContent = new Date().toLocaleTimeString();
+}
+
+async function save() {
+  const id = document.getElementById("f-id").value;
+  const body = {
+    name: document.getElementById("f-name").value,
+    country: document.getElementById("f-country").value,
+    region: document.getElementById("f-region").value,
+    isp_ip: document.getElementById("f-isp-ip").value,
+    http_url: document.getElementById("f-http-url").value,
+    asn: document.getElementById("f-asn").value,
+    real_ip: document.getElementById("f-real-ip").value,
+    status_url: document.getElementById("f-status-url").value,
+    category: document.getElementById("f-category").value,
+    notes: document.getElementById("f-notes").value,
+  };
+  if (!body.name || !body.country) return alert("Nama dan Negara wajib diisi");
+  try {
+    if (id) {
+      await fetch("/isps/" + id, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    } else {
+      await fetch("/isps", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    }
+    clearForm(); load();
+  } catch (e) { alert("Gagal: " + e.message); }
+}
+
+function edit(id) {
+  fetch("/isps/" + id).then((r) => r.json()).then((s) => {
+    document.getElementById("f-id").value = s.id;
+    document.getElementById("f-name").value = s.name || "";
+    document.getElementById("f-country").value = s.country || "";
+    document.getElementById("f-region").value = s.region || "";
+    document.getElementById("f-isp-ip").value = s.isp_ip || "";
+    document.getElementById("f-http-url").value = s.http_url || "";
+    document.getElementById("f-asn").value = s.asn || "";
+    document.getElementById("f-real-ip").value = s.real_ip || "";
+    document.getElementById("f-status-url").value = s.status_url || "";
+    document.getElementById("f-category").value = s.category || "isp";
+    document.getElementById("f-notes").value = s.notes || "";
+    document.getElementById("btn-cancel").style.display = "inline";
+    document.getElementById("btn-save").textContent = "💾 Update";
+  });
+}
+
+function del(id) {
+  if (!confirm("Hapus ISP ini?")) return;
+  fetch("/isps/" + id, { method: "DELETE" }).then(() => load());
+}
+
+function clearForm() {
+  document.getElementById("f-id").value = "";
+  document.querySelectorAll("#f-name, #f-country, #f-region, #f-isp-ip, #f-http-url, #f-asn, #f-real-ip, #f-status-url, #f-notes").forEach((e) => e.value = "");
+  document.getElementById("f-category").value = "isp";
+  document.getElementById("btn-cancel").style.display = "none";
+  document.getElementById("btn-save").textContent = "💾 Simpan";
+}
+
+document.getElementById("btn-save").onclick = save;
+document.getElementById("btn-cancel").onclick = clearForm;
+load();
+</script>
+</body>
+</html>

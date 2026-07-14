@@ -115,11 +115,16 @@ tbody tr.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 
 /* Controls */
 .controls { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-.controls select, .controls .btn {
+.controls select, .controls .btn, .controls .search-input {
   background:var(--card); color:var(--txt); border:1px solid var(--line);
   border-radius:10px; padding:9px 12px; font-size:13px; cursor:pointer;
 }
+.controls .search-input { min-width:140px; cursor:text; }
+.controls .search-input:focus { outline:none; border-color:var(--acc); }
 .controls .btn:hover { border-color:var(--acc); }
+.controls .btn.sm { padding:9px 10px; font-size:12px; }
+.ctrl-group { display:flex; gap:6px; align-items:center; }
+.ctrl-group .btn, .ctrl-group a.btn { text-decoration:none; display:inline-block; line-height:1; }
 .hint { color:var(--mut); font-size:12px; }
 
 /* Region groups */
@@ -163,6 +168,7 @@ tbody tr.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 .tag-isp { background:rgba(88,166,255,.15); color:var(--acc); }
 .tag-cdn { background:rgba(63,185,80,.15); color:var(--ok); }
 .tag-cache { background:rgba(210,153,34,.18); color:var(--warn); }
+.tag-local { background:rgba(245,158,11,.18); color:#f59e0b; }
 .asn { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:6px; background:rgba(163,113,247,.15); color:var(--acc2); vertical-align:middle; margin-left:4px; }
 .off-status { display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; margin-left:6px; vertical-align:middle; }
 .off-status.ok { background:rgba(63,185,80,.12); color:var(--ok); }
