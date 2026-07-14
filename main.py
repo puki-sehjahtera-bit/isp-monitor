@@ -43,6 +43,18 @@ async def main():
     asyncio.create_task(worker_loop())
     logger.info("Worker loop berjalan di background")
 
+    # Jalankan alert evaluator (cek global-down tiap 60 dtk)
+    from alerts import evaluate_alerts
+    async def alert_loop():
+        while True:
+            try:
+                await evaluate_alerts()
+            except Exception as e:
+                logger.exception("Alert error: %s", e)
+            await asyncio.sleep(60)
+    asyncio.create_task(alert_loop())
+    logger.info("Alert loop berjalan di background")
+
     # Jalankan API
     import uvicorn
     from api import app

@@ -61,6 +61,16 @@ async def init_db():
                 hcols.add(row[1])
         if "probe" not in hcols:
             await db.execute("ALTER TABLE isp_status_history ADD COLUMN probe TEXT NOT NULL DEFAULT 'local'")
+
+        # Tabel status alert (tracking down/up per ISP, hindari spam)
+        await db.executescript("""
+            CREATE TABLE IF NOT EXISTS alert_state (
+                isp_id      INTEGER PRIMARY KEY,
+                is_down     INTEGER NOT NULL DEFAULT 0,
+                last_change DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (isp_id) REFERENCES isp_list(id) ON DELETE CASCADE
+            );
+        """)
         
         # Tabel cache uptime harian sederhana
         await db.executescript("""
@@ -261,3 +271,43 @@ async def get_probes():
         await db.execute("PRAGMA busy_timeout=3000")
         async with db.execute("SELECT DISTINCT probe FROM isp_status_history ORDER BY probe") as cur:
             return [row["probe"] for row in await cur.fetchall()]
+
+
+async def get_alert_state(isp_id: int) -> int:
+    """Return 1 kalau terakhir tercatat down, 0 kalau up, -1 kalau belum ada."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA busy_timeout=3000")
+        async with db.execute("SELECT is_down FROM alert_state WHERE isp_id=?", (isp_id,)) as cur:
+            row = await cur.fetchone()
+        return row["is_down"] if row else -1
+
+
+async def set_alert_state(isp_id: int, is_down: bool):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA busy_timeout=3000")
+        await db.execute(
+            """INSERT INTO alert_state (isp_id, is_down, last_change) VALUES (?,?,CURRENT_TIMESTAMP)
+               ON CONFLICT(isp_id) DO UPDATE SET is_down=excluded.is_down, last_change=CURRENT_TIMESTAMP""",
+            (isp_id, 1 if is_down else 0),
+        )
+        await db.commit()
+
+
+async def get_latest_by_probe(isp_id: int) -> dict:
+    """Return {probe: status_bool} dari cek combined terbaru tiap probe."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA busy_timeout=3000")
+        res = {}
+        async with db.execute(
+            """SELECT s.probe AS probe, s.status AS status FROM isp_status_history s
+               WHERE s.isp_id=? AND s.check_type='combined'
+               AND s.recorded_at = (SELECT MAX(s2.recorded_at) FROM isp_status_history s2
+                                     WHERE s2.isp_id=s.isp_id AND s2.probe=s.probe
+                                     AND s2.check_type='combined')""",
+            (isp_id,)
+        ) as cur:
+            for row in await cur.fetchall():
+                res[row["probe"]] = bool(row["status"])
+        return res
