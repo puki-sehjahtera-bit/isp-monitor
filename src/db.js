@@ -64,6 +64,17 @@ db.exec(`
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS isp_verify (
+    isp_id    INTEGER PRIMARY KEY,
+    target_ip TEXT,
+    target_asn INTEGER,
+    expected_asn INTEGER,
+    match     INTEGER,
+    note      TEXT,
+    checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (isp_id) REFERENCES isp_list(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_hist_isp ON isp_status_history(isp_id, recorded_at);
 `);
 
@@ -280,6 +291,17 @@ function pruneOldHistory(days = 30) {
   return info.changes;
 }
 
+function getVerify(isp_id) {
+  return db.prepare("SELECT * FROM isp_verify WHERE isp_id = ?").get(isp_id) || null;
+}
+function upsertVerify(isp_id, v) {
+  db.prepare(
+    `INSERT INTO isp_verify (isp_id, target_ip, target_asn, expected_asn, match, note, checked_at)
+     VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+     ON CONFLICT(isp_id) DO UPDATE SET target_ip=excluded.target_ip, target_asn=excluded.target_asn,
+       expected_asn=excluded.expected_asn, match=excluded.match, note=excluded.note, checked_at=CURRENT_TIMESTAMP`
+  ).run(isp_id, v.ip, v.asn, v.expected, v.match === null ? null : v.match ? 1 : 0, v.note || "");
+}
 function getStats() {
   const day = todayISO();
   const total_isps = getAllIsps().length;
@@ -321,4 +343,6 @@ module.exports = {
   getDashboard,
   getStats,
   pruneOldHistory,
+  getVerify,
+  upsertVerify,
 };

@@ -10,6 +10,7 @@ const { seed } = require("./seed");
 const worker = require("./worker");
 const twitter = require("./twitter");
 const backup = require("./backup");
+const { verifyIsp } = require("./verify");
 
 const API_HOST = process.env.API_HOST || "0.0.0.0";
 const PORT = parseInt(process.env.PORT || process.env.API_PORT || "8000", 10);
@@ -48,7 +49,7 @@ app.get("/admin", (_req, res) => res.sendFile(path.join(PUBLIC, "admin.html")));
 app.get("/healthz", (_req, res) => res.json({ status: "ok", service: "isp-monitor-api" }));
 
 // ── Rate limit ──
-app.use(["/isps", "/dashboard", "/regions", "/stats", "/history", "/status", "/probes", "/export", "/health", "/report"], apiLimiter);
+app.use(["/isps", "/dashboard", "/regions", "/stats", "/history", "/status", "/probes", "/export", "/health", "/report", "/verify"], apiLimiter);
 
 // ── ISP CRUD ──
 app.get("/isps", (req, res) => {
@@ -104,6 +105,22 @@ app.get("/status/:id", (req, res) => {
     total_checks: row.total_checks, successful: row.successful,
     avg_latency_ms: null,
   });
+});
+
+// ── Verifikasi kepemilikan server (ASN target vs ASN ISP) ──
+app.get("/verify/:id", async (req, res) => {
+  const isp = db.getIspById(Number(req.params.id));
+  if (!isp) return res.status(404).json({ error: "ISP tidak ditemukan" });
+  const cached = db.getVerify(Number(req.params.id));
+  const fresh = cached && Date.now() - new Date(cached.checked_at).getTime() < 24 * 3600 * 1000;
+  if (fresh) return res.json({ ...cached, cached: true });
+  try {
+    const v = await verifyIsp(isp);
+    db.upsertVerify(Number(req.params.id), v);
+    res.json({ ...v, cached: false });
+  } catch (e) {
+    res.status(502).json({ error: "Gagal verifikasi: " + e.message });
+  }
 });
 
 // ── Manual trigger ──

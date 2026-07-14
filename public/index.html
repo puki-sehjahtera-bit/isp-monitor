@@ -103,6 +103,12 @@ if ('serviceWorker' in navigator) {
 
   <!-- Grid kartu ISP -->
   <section class="card">
+    <div class="tabs">
+      <button class="tab active" data-scope="all">Semua</button>
+      <button class="tab" data-scope="local">🇮🇩 Lokal</button>
+      <button class="tab" data-scope="global">🌐 Global</button>
+      <button id="btn-verify-all" class="btn sm tab-right" title="Cek ASN tiap target vs ASN ISP">✓ Verifikasi Semua</button>
+    </div>
     <div class="grid" id="grid"></div>
   </section>
 

@@ -2,7 +2,7 @@
 const socket = io();
 const store = {};
 let openId = null, detailChart = null, globalChart = null;
-let countryFilter = "", catFilter = "", regionFilter = "", searchQuery = "", sortKey = "id";
+let countryFilter = "", catFilter = "", regionFilter = "", searchQuery = "", sortKey = "id", scope = "all";
 const globalPts = [];
 
 const FLAGS = { ID:"🇮🇩", US:"🇺🇸", PH:"🇵🇭", MY:"🇲🇾", SG:"🇸🇬", JP:"🇯🇵", DE:"🇩🇪", FR:"🇫🇷", BR:"🇧🇷", SE:"🇸🇪", Global:"🌐" };
@@ -150,6 +150,7 @@ function renderTable() {
     .filter((s) => !catFilter || (s.category || "isp") === catFilter)
     .filter((s) => !regionFilter || (s.regions && s.regions[regionFilter]))
     .filter((s) => !countryFilter || s.country === countryFilter)
+    .filter((s) => scope === "all" || (scope === "local" ? s.country === "ID" : s.country !== "ID"))
     .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.country || "").toLowerCase().includes(q) || (s.isp_ip || "").includes(q) || (s.asn || "").includes(q))
     .sort((a, b) => sortCards(a, b))
     .forEach((s) => grid.appendChild(cardEl(s)));
@@ -190,10 +191,36 @@ function cardEl(s) {
     <div class="ic-actions">
       <button class="mini" onclick="manual(${s.id})">Cek</button>
       <button class="mini" onclick="openDetail(${s.id})">Grafik</button>
+      <button class="mini" onclick="verifyOne(${s.id})">✓</button>
+      <span id="vrf-${s.id}" class="vbadge">${s.verify?.match === true ? "✅" : s.verify?.match === false ? "⚠️" : ""}</span>
     </div>`;
-  setTimeout(() => { updateRow(s.id); drawSpark(s.id); }, 0);
+  setTimeout(() => { updateRow(s.id); drawSpark(s.id); if (!s.verify) loadVerify(s.id); }, 0);
   return div;
 }
+
+async function loadVerify(id) {
+  try {
+    const v = await fetch(`/verify/${id}`).then((r) => r.json());
+    store[id].verify = v;
+    const el = $(`#vrf-${id}`);
+    if (el) el.textContent = v.match === true ? "✅" : v.match === false ? "⚠️" : "";
+  } catch {}
+}
+window.verifyOne = async (id) => {
+  const el = $(`#vrf-${id}`);
+  if (el) el.textContent = "…";
+  const v = await fetch(`/verify/${id}`).then((r) => r.json());
+  store[id].verify = v;
+  if (el) el.textContent = v.match === true ? "✅" : v.match === false ? "⚠️" : "";
+  if (v.match === false) console.warn(`Verifikasi ${id}: ASN beda`, v);
+};
+window.verifyAll = async () => {
+  const ids = Object.values(store).filter((s) => !catFilter || (s.category || "isp") === catFilter)
+    .filter((s) => !countryFilter || s.country === countryFilter)
+    .filter((s) => scope === "all" || (scope === "local" ? s.country === "ID" : s.country !== "ID"))
+    .map((s) => s.id);
+  for (const id of ids) { await window.verifyOne(id); await new Promise((r) => setTimeout(r, 250)); }
+};
 
 function updateRow(id) {
   const s = store[id]; if (!s) return;
@@ -323,6 +350,14 @@ $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId 
 $("#cat-filter").onchange = (e) => { catFilter = e.target.value; renderTable(); };
 $("#region-filter").onchange = (e) => { regionFilter = e.target.value; renderTable(); };
 $("#sort-filter").onchange = (e) => { sortKey = e.target.value; renderTable(); };
+document.querySelectorAll(".tab").forEach((t) => {
+  t.onclick = () => {
+    scope = t.dataset.scope;
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+    renderTable();
+  };
+});
+$("#btn-verify-all").onclick = () => window.verifyAll();
 $("#btn-refresh").onclick = loadDashboard;
 $("#search-input").oninput = (e) => { searchQuery = e.target.value; renderTable(); };
 $("#btn-export-csv").onclick = () => { window.open("/export/csv", "_blank"); };
