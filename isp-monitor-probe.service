@@ -8,7 +8,7 @@ User=root
 WorkingDirectory=/opt/isp-monitor
 Environment=NODE_ENV=production
 EnvironmentFile=/opt/isp-monitor/.env
-ExecStart=/opt/isp-monitor/node_modules/.bin/node src/probe.js
+ExecStart=/usr/bin/node src/probe.js
 Restart=always
 RestartSec=5
 
