@@ -125,9 +125,35 @@ app.post("/worker/start", (req, res) => {
   res.status(202).json({ status: "worker started" });
 });
 
+// ── SSE clients ──
+const sseClients = [];
+
 function broadcast(payload) {
   io.emit("check", payload);
+  const data = JSON.stringify(payload);
+  for (let i = sseClients.length - 1; i >= 0; i--) {
+    try {
+      sseClients[i].write(`data: ${data}\n\n`);
+    } catch {
+      sseClients.splice(i, 1);
+    }
+  }
 }
+
+app.get("/events", (req, res) => {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+  sseClients.push(res);
+  req.on("close", () => {
+    const idx = sseClients.indexOf(res);
+    if (idx !== -1) sseClients.splice(idx, 1);
+  });
+});
 
 let workerStarted = false;
 function startBackgroundWorker() {

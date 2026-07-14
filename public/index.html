@@ -2,11 +2,27 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0e17" />
+<meta name="description" content="Pantau kesehatan ISP dan jaringan global secara real-time. Lihat status ping, HTTP, dan uptime ISP di seluruh dunia." />
+<meta name="keywords" content="ISP monitor, network health, ping, internet down, realtime, ISP Indonesia" />
+<meta property="og:title" content="ISP Monitor — Global Network Health" />
+<meta property="og:description" content="Pantau kesehatan ISP global secara real-time. Status ping, HTTP, uptime, dan latensi." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://ispmonitor.my.id" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>ISP Monitor — Global Network Health</title>
 <link rel="stylesheet" href="/style.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+</script>
 </head>
 <body>
 <div class="bg-orbs"><span></span><span></span><span></span></div>
@@ -26,6 +42,23 @@
 </header>
 
 <div class="wrap">
+  <!-- Hero: kesehatan global -->
+  <section class="hero card">
+    <div class="hero-left">
+      <div class="hero-badge ok" id="hero-badge">◉ ALL SYSTEMS OPERATIONAL</div>
+      <h2 class="hero-title">Kesehatan Jaringan Global</h2>
+      <p class="hero-sub" id="hero-sub">Memantau target secara realtime…</p>
+      <div class="hero-stats">
+        <div><b id="hero-online">–</b><span>Online</span></div>
+        <div><b id="hero-offline">–</b><span>Offline</span></div>
+        <div><b id="hero-avg">–</b><span>Latensi rata²</span></div>
+      </div>
+    </div>
+    <div class="gauge" id="gauge">
+      <div class="gauge-inner"><span id="gauge-val">–</span><small>uptime</small></div>
+    </div>
+  </section>
+
   <!-- Panel ringkasan -->
   <section class="summary" id="summary"></section>
 
@@ -38,7 +71,7 @@
       <select id="region-filter"><option value="">Semua</option></select>
     </label>
     <button id="btn-refresh" class="btn">↻ Refresh</button>
-    <span class="hint" id="interval-hint">Cek tiap 60 dtk · update realtime via WebSocket</span>
+    <span class="hint" id="interval-hint">Cek realtime tiap 10-30 dtk</span>
   </div>
 
   <!-- Grup region / peta -->
@@ -53,17 +86,44 @@
     <canvas id="globalChart" height="90"></canvas>
   </section>
 
-  <!-- Tabel -->
+  <!-- Grid kartu ISP -->
   <section class="card">
-    <table id="tbl">
-      <thead>
-        <tr>
-          <th>Target</th><th>Negara</th><th>Ping</th><th>HTTP</th><th>Status</th>
-          <th>Uptime</th><th>Tren</th><th>Per Region</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- Bagian afiliasi & share -->
+  <section class="card promo-row">
+    <div class="promo-item">
+      <span class="promo-icon">⚡</span>
+      <div>
+        <div class="promo-title">ISP lemot? Coba Game Booster</div>
+        <div class="promo-links">
+          <a href="https://www.exitlag.com/affiliates" target="_blank" rel="noopener">ExitLag</a>
+          <a href="https://www.gearupbooster.com" target="_blank" rel="noopener">GearUP Booster</a>
+        </div>
+      </div>
+    </div>
+    <div class="promo-item">
+      <span class="promo-icon">🔒</span>
+      <div>
+        <div class="promo-title">VPN untuk koneksi aman & cepat</div>
+        <div class="promo-links">
+          <a href="https://www.nordvpn.com" target="_blank" rel="noopener">NordVPN</a>
+          <a href="https://www.expressvpn.com" target="_blank" rel="noopener">ExpressVPN</a>
+        </div>
+      </div>
+    </div>
+    <div class="promo-item share-btns">
+      <span class="promo-icon">📢</span>
+      <div>
+        <div class="promo-title">Bagikan ke:</div>
+        <div class="promo-links">
+          <button onclick="shareTwitter()" class="share-btn x">𝕏 Twitter</button>
+          <button onclick="shareLinkedin()" class="share-btn in">In LinkedIn</button>
+          <button onclick="shareCopyUrl()" class="share-btn cp">🔗 Salin URL</button>
+        </div>
+      </div>
+    </div>
   </section>
 </div>
 

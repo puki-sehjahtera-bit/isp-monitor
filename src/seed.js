@@ -47,6 +47,24 @@ const GLOBAL_ISPS = [
   ["Apple", "US", "Global", "", "https://www.apple.com", 99, "Services", "cdn", "714", ""],
   ["Steam", "US", "Global", "", "https://store.steampowered.com", 100, "Gaming", "cdn", "32590", ""],
   ["Spotify", "SE", "Global", "", "https://www.spotify.com", 101, "Music", "cdn", "29017", ""],
+
+  // ── ISP Lokal Indonesia Tambahan ──
+  ["MyRepublic", "ID", "Jakarta", "", "https://www.myrepublic.co.id", 5, "ISP fiber ID, routing game", "isp", "64073", ""],
+  ["Oxygen.id", "ID", "Jakarta", "", "https://www.oxygen.id", 6, "ISP fiber ID", "isp", "141344", ""],
+  ["CBN", "ID", "Jakarta", "", "https://www.cbn.net.id", 7, "Cyberindo Aditama, ISP korporat", "isp", "17953", ""],
+  ["First Media", "ID", "Jakarta", "", "https://www.firstmedia.com", 8, "ISP kabel ID", "isp", "23700", ""],
+  ["Iconnet", "ID", "Nasional", "", "https://iconnet.pln.co.id", 9, "PLN Infrastruktur, jangkauan luas", "isp", "141967", ""],
+  ["Smartfren", "ID", "Java", "", "https://www.smartfren.com", 10, "Operator seluler ID", "isp", "4515", ""],
+  ["Tri (3)", "ID", "Java", "", "https://www.tri.co.id", 11, "Operator seluler ID", "isp", "22700", ""],
+  ["Gmedia", "ID", "Jakarta", "", "https://www.gmedia.net.id", 12, "ISP korporat ID", "isp", "131747", ""],
+  ["NusaNet", "ID", "Jakarta", "", "https://nusanet.net.id", 13, "ISP korporat ID", "isp", "9734", ""],
+
+  ["MNC Play", "ID", "Jakarta", "", "https://www.mncplay.com", 14, "MNC Kabel MediA, fiber + IPTV", "isp", "131111", ""],
+  ["Moratelindo", "ID", "Jakarta", "", "https://www.moratelindo.co.id", 15, "ISP & koneksi internasional", "isp", "131219", ""],
+  ["FiberStar", "ID", "Jakarta", "", "https://www.fiberstar.co.id", 16, "ISP fiber metro", "isp", "55666", ""],
+  ["Lintasarta", "ID", "Jakarta", "", "https://www.lintasarta.net", 17, "ISP korporat & satelit", "isp", "4787", ""],
+  ["Mora Telematika", "ID", "Jakarta", "", "https://mora.tech", 18, "ISP data center & backhaul", "isp", "24521", ""],
+  ["PSN", "ID", "Nasional", "", "https://www.psn.co.id", 19, "Pasifik Satelit Nusantara", "isp", "10216", ""],
 ];
 
 function seed() {

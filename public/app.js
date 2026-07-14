@@ -49,8 +49,30 @@ async function loadDashboard() {
   fillRegionFilter(regions);
   fillCatFilter();
   renderSummary(stats);
+  renderHero();
   renderRegionGroups();
   renderTable();
+}
+
+function renderHero() {
+  const all = Object.values(store);
+  const on = all.filter(isOnline).length;
+  const off = all.length - on;
+  const lat = all.filter(isOnline).map((s) => s.latest?.combined?.latency).filter((l) => l != null);
+  const avg = lat.length ? Math.round(lat.reduce((a, b) => a + b, 0) / lat.length) : 0;
+  const pct = all.length ? Math.round((on / all.length) * 100) : 0;
+  $("#hero-online").textContent = on;
+  $("#hero-offline").textContent = off;
+  $("#hero-avg").textContent = avg ? avg + "ms" : "–";
+  $("#hero-sub").textContent = `Memantau ${all.length} target di ${new Set(all.map((s) => s.country)).size} negara secara realtime.`;
+  const g = $("#gauge");
+  const col = off === 0 ? "var(--ok)" : on === 0 ? "var(--fail)" : "var(--warn)";
+  g.style.background = `conic-gradient(${col} ${pct * 3.6}deg, var(--line) 0)`;
+  $("#gauge-val").textContent = pct + "%";
+  const badge = $("#hero-badge");
+  if (off === 0) { badge.textContent = "◉ ALL SYSTEMS OPERATIONAL"; badge.className = "hero-badge ok"; }
+  else if (on === 0) { badge.textContent = "◉ GLOBAL OUTAGE"; badge.className = "hero-badge bad"; }
+  else { badge.textContent = `◉ DEGRADED — ${off} offline`; badge.className = "hero-badge warn"; }
 }
 
 function fillRegionFilter(regions) {
@@ -76,16 +98,16 @@ function renderSummary(stats) {
   const best = withCache.slice().sort((a, b) => (b.cache.uptime_percent || 0) - (a.cache.uptime_percent || 0))[0];
   const worst = withCache.slice().sort((a, b) => (a.cache.uptime_percent || 0) - (b.cache.uptime_percent || 0))[0];
   const cards = [
-    { v: all.length, l: "Total Target", accent: "var(--acc)" },
-    { v: `${on}`, l: "Online", accent: "var(--ok)" },
-    { v: `${off}`, l: "Offline", accent: "var(--fail)" },
-    { v: avg ? avg + "ms" : "–", l: "Avg Latensi", accent: "var(--acc2)" },
-    { v: best ? `${best.name} ${best.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terbaik", accent: "var(--ok)" },
-    { v: worst ? `${worst.name} ${worst.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terburuk", accent: "var(--warn)" },
-    { v: stats.checks_today || 0, l: "Cek Hari Ini", accent: "var(--acc)" },
+    { v: all.length, l: "Total Target", accent: "var(--acc)", ic: "🎯" },
+    { v: `${on}`, l: "Online", accent: "var(--ok)", ic: "✅" },
+    { v: `${off}`, l: "Offline", accent: "var(--fail)", ic: "❌" },
+    { v: avg ? avg + "ms" : "–", l: "Avg Latensi", accent: "var(--acc2)", ic: "⚡" },
+    { v: best ? `${best.name} ${best.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terbaik", accent: "var(--ok)", ic: "🏆" },
+    { v: worst ? `${worst.name} ${worst.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terburuk", accent: "var(--warn)", ic: "⚠️" },
+    { v: stats.checks_today || 0, l: "Cek Hari Ini", accent: "var(--acc)", ic: "📊" },
   ];
   $("#summary").innerHTML = cards.map((c) =>
-    `<div class="scard" style="--accent:${c.accent}"><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`
+    `<div class="scard" style="--accent:${c.accent}"><span class="ic">${c.ic}</span><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`
   ).join("");
 }
 
@@ -118,42 +140,50 @@ function renderRegionGroups() {
   });
 }
 
-// ── Table ──
+// ── Grid kartu ISP ──
 function renderTable() {
-  const tbody = $("#tbody");
-  tbody.innerHTML = "";
+  const grid = $("#grid");
+  grid.innerHTML = "";
   Object.values(store)
     .filter((s) => !catFilter || (s.category || "isp") === catFilter)
     .filter((s) => !regionFilter || (s.regions && s.regions[regionFilter]))
     .filter((s) => !countryFilter || s.country === countryFilter)
     .sort((a, b) => a.id - b.id)
-    .forEach((s) => tbody.appendChild(rowEl(s)));
+    .forEach((s) => grid.appendChild(cardEl(s)));
 }
 
-function rowEl(s) {
-  const tr = document.createElement("tr");
-  tr.id = "row-" + s.id;
+function cardEl(s) {
+  const div = document.createElement("div");
+  div.id = "card-" + s.id;
   const cat = s.category || "isp";
-  tr.innerHTML = `
-    <td><b>${s.name}</b> <span class="tag tag-${cat}">${CAT_LABEL[cat] || cat}</span>${s.asn ? ` <span class="asn">AS${s.asn}</span>` : ""}<br><small class="ok">↳ ${pingTarget(s)}</small></td>
-    <td>${FLAGS[s.country] || ""} ${s.country}${s.region && s.region !== "Global" ? " · " + s.region : ""}</td>
-    <td id="ping-${s.id}">–</td>
-    <td id="http-${s.id}">–</td>
-    <td id="comb-${s.id}">–</td>
-    <td id="up-${s.id}">–</td>
-    <td><canvas class="spark" id="spark-${s.id}" width="90" height="26"></canvas></td>
-    <td id="reg-${s.id}" class="regions-cell"></td>
-    <td>
+  div.className = "ispcard";
+  div.innerHTML = `
+    <div class="ic-top">
+      <div class="ic-name"><b>${s.name}</b> <span class="tag tag-${cat}">${CAT_LABEL[cat] || cat}</span>${s.asn ? ` <span class="asn">AS${s.asn}</span>` : ""}</div>
+      <div class="ic-loc">${FLAGS[s.country] || ""} ${s.country}${s.region && s.region !== "Global" ? " · " + s.region : ""}</div>
+    </div>
+    <div class="ic-target">↳ ${pingTarget(s)}</div>
+    <div class="ic-metrics">
+      <div class="m"><span>Ping</span><b id="ping-${s.id}">–</b></div>
+      <div class="m"><span>HTTP</span><b id="http-${s.id}">–</b></div>
+      <div class="m"><span>Status</span><b id="comb-${s.id}">–</b></div>
+      <div class="m"><span>Uptime</span><b id="up-${s.id}">–</b></div>
+    </div>
+    <canvas class="spark" id="spark-${s.id}" width="240" height="26"></canvas>
+    <div id="reg-${s.id}" class="regions-cell ic-reg"></div>
+    <div class="ic-actions">
       <button class="mini" onclick="manual(${s.id})">Cek</button>
       <button class="mini" onclick="openDetail(${s.id})">Grafik</button>
-    </td>`;
+    </div>`;
   setTimeout(() => { updateRow(s.id); drawSpark(s.id); }, 0);
-  return tr;
+  return div;
 }
 
 function updateRow(id) {
   const s = store[id]; if (!s) return;
   const ping = s.latest?.ping, http = s.latest?.http, comb = s.latest?.combined;
+  const tr = $(`#row-${id}`);
+  if (tr) tr.classList.toggle("row-off", !(comb?.ok)); tr?.classList.toggle("row-on", !!comb?.ok);
   const set = (sel, html) => { const e = $(sel); if (e) e.innerHTML = html; };
   set(`#ping-${id}`, ping?.ok !== undefined ? `${ping.ok ? "✅" : "❌"} ${fmt(ping.latency)}` : "–");
   set(`#http-${id}`, http?.ok !== undefined ? `${http.ok ? "✅" : "❌"} ${fmt(http.latency)}` : "–");
@@ -163,10 +193,10 @@ function updateRow(id) {
 }
 
 function flashRow(id) {
-  const tr = $(`#row-${id}`); if (!tr) return;
-  tr.classList.remove("flash");
-  void tr.offsetWidth; // reflow biar animasi bisa diulang
-  tr.classList.add("flash");
+  const el = $(`#card-${id}`); if (!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth; // reflow biar animasi bisa diulang
+  el.classList.add("flash");
 }
 
 function drawSpark(id) {
@@ -209,6 +239,7 @@ socket.on("check", (p) => {
   flashRow(p.ispId);
   pushGlobal();
   renderSummary();
+  renderHero();
   renderRegionGroups();
   if (openId === p.ispId) pushDetail(p);
 });
@@ -276,6 +307,46 @@ $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId 
 $("#cat-filter").onchange = (e) => { catFilter = e.target.value; renderTable(); };
 $("#region-filter").onchange = (e) => { regionFilter = e.target.value; renderTable(); };
 $("#btn-refresh").onclick = loadDashboard;
+
+// ── SSE fallback ──
+(() => {
+  if (!window.EventSource) return;
+  const es = new EventSource("/events");
+  es.onmessage = (e) => {
+    try {
+      const p = JSON.parse(e.data);
+      if (p.type === "connected") return;
+      const ev = new CustomEvent("sse-check", { detail: p });
+      window.dispatchEvent(ev);
+    } catch {}
+  };
+  es.onerror = () => {};
+})();
+
+// ── Share functions ──
+const SHARE_URL = window.location.origin;
+const SHARE_TITLE = "ISP Monitor — Pantau Kesehatan ISP secara Real-time";
+function onlineCount() {
+  const all = Object.values(store);
+  const on = all.filter(isOnline).length;
+  return `${on}/${all.length} ISP online · Latensi rata-rata: ${
+    (() => {
+      const lats = all.filter(isOnline).map((s) => s.latest?.combined?.latency).filter((l) => l != null);
+      return lats.length ? Math.round(lats.reduce((a, b) => a + b, 0) / lats.length) + "ms" : "–";
+    })()
+  }`;
+}
+window.shareTwitter = () => {
+  const text = encodeURIComponent(`${onlineCount()} — ${SHARE_TITLE}\n${SHARE_URL}`);
+  window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "width=600,height=400");
+};
+window.shareLinkedin = () => {
+  const text = encodeURIComponent(`${onlineCount()} — ${SHARE_TITLE}`);
+  window.open(`https://linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}&title=${text}`, "_blank", "width=600,height=400");
+};
+window.shareCopyUrl = () => {
+  navigator.clipboard.writeText(SHARE_URL).then(() => alert("URL disalin ke clipboard!")).catch(() => prompt("Salin URL ini:", SHARE_URL));
+};
 
 initGlobalChart();
 loadDashboard();
