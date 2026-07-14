@@ -42,6 +42,22 @@ cp .env.example .env      # edit kalau perlu
 node src/server.js        # http://localhost:8000
 ```
 
+## Jalankan sebagai service (systemd, lokal/central)
+
+Biarkan monitor nyala terus & auto-start pas boot:
+
+```bash
+# central (API + UI):
+sudo cp isp-monitor.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now isp-monitor
+
+# probe region (VPS lain, tanpa API server):
+sudo cp isp-monitor-probe.service /etc/systemd/system/
+sudo systemctl enable --now isp-monitor-probe
+```
+Cek log: `journalctl -u isp-monitor -f`.
+
 ## REST API
 
 | Method | Endpoint | Keterangan |

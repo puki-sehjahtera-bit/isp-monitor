@@ -1,0 +1,16 @@
+[Unit]
+Description=ISP Monitor — Central API + Realtime UI
+After=network.target
+
+[Service]
+Type=simple
+User=bahcron
+WorkingDirectory=/home/bahcron/isp-monitor
+Environment=NODE_ENV=production
+EnvironmentFile=/home/bahcron/isp-monitor/.env
+ExecStart=/home/bahcron/isp-monitor/node_modules/.bin/node src/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
