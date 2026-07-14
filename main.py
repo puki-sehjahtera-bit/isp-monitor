@@ -21,7 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger("isp-monitor")
 
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "8000"))
+# Railway/Heroku pakai $PORT; lokal pakai $API_PORT (default 8000)
+API_PORT = int(os.getenv("PORT") or os.getenv("API_PORT", "8000"))
 
 
 async def main():
