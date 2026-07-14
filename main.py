@@ -11,6 +11,9 @@ from pathlib import Path
 # Pastikan module lokal terimport
 sys.path.insert(0, str(Path(__file__).parent))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import database as db
 from worker import worker_loop
 
