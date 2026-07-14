@@ -190,25 +190,10 @@ async def delete_isp(isp_id: int):
 
 # Status dan Dashboard
 
-@app.get("/dashboard", response_model=List[ISPBase])
+@app.get("/dashboard")
 async def dashboard():
-    """Dashboard baris-kas."""
-    isps = await db.get_isp_dashboard()
-    result = []
-    for isp in isps:
-        result.append({
-            "name": isp["name"],
-            "country": isp["country"],
-            "region": isp.get("region"),
-            "isp_ip": isp.get("isp_ip"),
-            "http_url": isp.get("http_url"),
-            "order_index": isp["order_index"],
-            "is_active": True,
-            "notes": isp.get("notes", ""),
-            "created_at": "",
-            "updated_at": ""
-        })
-    return result
+    """Dashboard lengkap: tiap ISP + cache uptime + 5 status terbaru."""
+    return await db.get_isp_dashboard()
 
 
 @app.get("/status/{isp_id}", response_model=ISPStatusResponse)
