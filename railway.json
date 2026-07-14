@@ -7,13 +7,14 @@
   "deploy": {
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3,
-    "startCommand": "python main.py",
+    "startCommand": "node src/server.js",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
     "port": 8000,
     "env": {
       "PROBE_REGION": "central",
-      "REPORT_TOKEN": "{{RAILWAY_REPORT_TOKEN}}"
+      "REPORT_TOKEN": "{{RAILWAY_REPORT_TOKEN}}",
+      "DATA_DIR": "/data"
     }
   }
 }

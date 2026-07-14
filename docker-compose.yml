@@ -7,5 +7,21 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - DATA_DIR=/data
     volumes:
-      - ./data:/app/data
+      - ./data:/data
+
+  # ── Probe region (jalankan di VPS/device lain, bukan di central) ──
+  # Uncomment untuk menjalankan probe di container ini (biasanya di mesin terpisah).
+  # probe:
+  #   build: .
+  #   container_name: isp-monitor-probe
+  #   restart: unless-stopped
+  #   environment:
+  #     - PROBE_REGION=eu-west
+  #     - CENTRAL_URL=https://<central>.trycloudflare.com
+  #     - REPORT_TOKEN=${REPORT_TOKEN}
+  #     - PROBE_ASN=7713
+  #     - PROBE_LOCATION=Europe
+  #   # tanpa port publish: probe cuma lapor ke central

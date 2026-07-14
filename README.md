@@ -1,58 +1,45 @@
-# ISP Monitor — Aplikasi Monitoring Jaringan ISP Global
+# ISP Monitor — Global Network Health (Node.js)
 
-Aplikasi untuk memantau status kesehatan ISP di seluruh dunia:
-- Ping ICMP ke IP/hostname ISP
-- HTTP GET ke endpoint health-check ISP
-- Status gabungan (combined) per ISP
-- Dashboard terminal & REST API (FastAPI)
-- Uptime harian & riwayat status tersimpan di SQLite
+Aplikasi monitoring kesehatan ISP di seluruh dunia dengan **ping realtime** dan
+**grafik analitik per cek**. Backend Node.js (Express + Socket.IO + better-sqlite3),
+frontend realtime (Chart.js) lewat WebSocket.
+
+Fitur:
+- Ping ICMP ke IP/hostname ISP, **fallback HTTP** kalau ICMP diblokir (cloud).
+- Cek HTTP GET ke endpoint health-check ISP (latency).
+- Status gabungan (combined) per ISP.
+- **Realtime**: tiap cek di-broadcast via WebSocket → tabel & grafik update langsung.
+- Grafik: latensi gabungan rata-rata global (realtime) + grafik latensi per-ISP
+  (ping/http/combined) dari riwayat.
+- Multi-region: probe di banyak lokasi lapor ke 1 central DB (tag region).
+- Dashboard web + REST API (FastAPI-style) + notifikasi Telegram (global-down).
 
 ## Struktur
 
 ```
 isp-monitor/
-├── database.py          # Layer DB (SQLite + aiosqlite)
-├── worker.py            # Worker: ping + HTTP check tiap ISP
-├── api.py               # REST API (FastAPI)
-├── cli.py               # CLI dashboard terminal
-├── main.py              # Entry point: jalankan API + worker
-├── requirements.txt
+├── src/
+│   ├── server.js     # Express + Socket.IO + REST API + static
+│   ├── worker.js     # Loop monitoring (lokal / probe) + alert global-down
+│   ├── checks.js     # ICMP ping (fallback HTTP)
+│   ├── db.js         # Layer DB (better-sqlite3)
+│   ├── seed.js       # Seed ~19 ISP global nyata
+│   └── probe.js      # Entry probe region (tanpa API server)
+├── public/           # Frontend (index.html, app.js, style.css)
+├── package.json
+├── Dockerfile
+├── docker-compose.yml
+├── railway.json
 └── .env.example
 ```
 
-## Install
+## Install (lokal)
 
 ```bash
 cd /home/bahcron/isp-monitor
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # edit jika perlu
-```
-
-## Jalankan
-
-**Cara 1 — semua sekaligus (API + worker):**
-```bash
-python3 main.py
-```
-
-**Cara 2 — API saja:**
-```bash
-uvicorn api:app --host 0.0.0.0 --port 8000
-```
-
-**Cara 3 — worker saja (jika API jalan di tempat lain):**
-```bash
-python3 -m worker
-```
-
-**CLI dashboard:**
-```bash
-python3 cli.py --list          # list semua ISP
-python3 cli.py --add-isps "Telkomsel" "ID|Java|139.255.0.1|https://.."
-python3 cli.py --check-all     # jalankan satu putaran cek
-python3 cli.py --dashboard     # tampilkan status
+npm install
+cp .env.example .env      # edit kalau perlu
+node src/server.js        # http://localhost:8000
 ```
 
 ## REST API
@@ -60,81 +47,44 @@ python3 cli.py --dashboard     # tampilkan status
 | Method | Endpoint | Keterangan |
 |--------|----------|------------|
 | GET | `/healthz` | Health check |
-| GET | `/isps` | List ISP (filter: `?country=ID&region=Java`) |
+| GET | `/isps` | List ISP (`?country=ID&region=Java`) |
 | POST | `/isps` | Tambah ISP |
-| GET | `/isps/{id}` | Detail ISP |
-| PUT | `/isps/{id}` | Update ISP |
-| DELETE | `/isps/{id}` | Soft delete ISP |
-| GET | `/dashboard` | Dashboard semua ISP |
-| GET | `/status/{id}` | Uptime hari ini |
-| GET | `/history/{id}` | Riwayat status mentah |
+| GET/PUT/DELETE | `/isps/{id}` | Detail/update/hapus ISP |
+| GET | `/dashboard` | Dashboard semua ISP (+ breakdown per region) |
+| GET | `/regions` | List region/probe |
 | GET | `/stats` | Statistik keseluruhan |
-| POST | `/health/{id}` | Trigger cek manual 1 ISP |
+| GET | `/history/{id}` | Riwayat status (`?check_type=ping&limit=300`) |
+| POST | `/health/{id}` | Trigger cek manual 1 ISP (realtime) |
 | POST | `/health/all` | Trigger cek manual semua ISP |
+| POST | `/report` | Terima laporan probe region (butuh `REPORT_TOKEN`) |
 | POST | `/worker/start` | Start worker background |
 
-Contoh:
-```bash
-curl http://localhost:8000/dashboard
-curl -X POST http://localhost:8000/isps \
-  -H "Content-Type: application/json" \
-  -d '{"name":"IndiHome","country":"ID","isp_ip":"8.8.8.8","http_url":"https://www.google.com/generate_204"}'
-```
+WebSocket: connect ke `/`, event `check` tiap hasil cek `{ispId,name,ping,http,combined,probe,ts}`.
+Client bisa emit `pingNow` `{ispId}` untuk cek instan.
 
-## Catatan
-
-- DB: `data/isp_monitor.db` (otomatis dibuat)
-- Interval default: 3 menit, jeda antar ISP 30 detik
-- Atur via env `MONITOR_INTERVAL_MINUTES`
-
-## Web UI (untuk semua orang)
-
-Buka di browser:
-
-```
-http://<host>:8000/
-```
-
-Dashboard menampilkan tabel ISP global, status ONLINE/OFFLINE, uptime harian,
-bar progress, tombol cek manual, dan form tambah/hapus ISP. Auto-refresh tiap 15 dtk.
-
-## Seed data global
-
-Pertama kali jalan (DB kosong), `main.py` otomatis mengisi ~17 ISP global nyata
-(ID, US, PH, MY, SG, JP, DE, FR, BR). Untuk reseed manual:
+## Deploy publik (Railway)
 
 ```bash
-python3 seed_data.py
+# railway CLI
+railway login
+railway link          # pilih projek / init
+railway up            # build via Dockerfile, startCommand node src/server.js
 ```
 
-## Deploy publik (agar bisa diakses semua orang)
+- `railway.json` sudah diset: Dockerfile, port 8000, healthcheck `/healthz`, env
+  `PROBE_REGION=central` + `REPORT_TOKEN`.
+- **Mount volume** ke `/data` biar DB (`isp_monitor.db`) persisten antar deploy.
+- Set `REPORT_TOKEN` (atau biarkan `{{RAILWAY_REPORT_TOKEN}}` dari Railway variable).
 
-**Opsi A — Docker (paling mudah):**
+Atau Docker lokal:
 ```bash
-docker compose up -d --build
-# buka http://<server-ip>:8000/
+docker compose up -d --build     # http://<host>:8000
 ```
-
-**Opsi B — systemd + reverse proxy:**
-```bash
-sudo cp isp-monitor.service /etc/systemd/system/
-sudo systemctl enable --now isp-monitor
-```
-Lalu pasang reverse proxy (Caddy/Nginx) supaya domain publik → `localhost:8000`.
-Contoh Caddy ada di `Caddyfile.example` (auto-HTTPS).
-
-**Opsi C — Lokal saja:**
-```bash
-python3 main.py   # akses http://localhost:8000/
-```
-
-> Catatan: ping ICMP butuh permission. Di Docker/`setcap` tidak wajib karena
-> health-check juga pakai HTTP. Di host Linux biasa ping jalan sebagai user.
 
 ## Multi-region (pemantauan beneran "global")
 
-Satu server = satu titik pandang. Biar global, jalankan **probe worker** di
-beberapa region, semua lapor ke **1 central DB**.
+Satu central = satu titik pandang. Jalankan **probe** di banyak region, semua lapor
+ke **1 central DB**.
 
 ```
 region "asia"  ─┐
@@ -143,22 +93,49 @@ region "us"    ─┘
 central        ─► API + UI (agregasi per region)
 ```
 
-**Central** (Railway / server ini): jalanin normal `main.py`. Optional set
+**Central** (Railway / server ini): jalanin normal `node src/server.js`. Set
 `REPORT_TOKEN` biar `/report` butuh auth.
 
-**Probe region** (VPS/cloud manapun): jalanin worker saja dengan env:
+**Probe region** (VPS/cloud manapun) — turnkey:
 ```bash
-PROBE_REGION=asia \
-CENTRAL_URL=https://isp-monitor-xxx.up.railway.app \
-REPORT_TOKEN=token_yang_sama \
-python3 worker.py
+# di mesin probe (setelah code ada di /opt/isp-monitor):
+./install-probe.sh /opt/isp-monitor
+# lalu isi CENTRAL_URL, PROBE_REGION, REPORT_TOKEN, PROBE_ASN, PROBE_LOCATION
 ```
-Worker GET `/isps` dari central, cek tiap ISP, lalu POST hasil ke `/report`
-dengan tag region. Tidak perlu DB lokal.
+Atau manual:
+```bash
+PROBE_REGION=eu-west \
+CENTRAL_URL=https://<central>.up.railway.app \
+REPORT_TOKEN=<token_yang_sama> \
+PROBE_ASN=7713 \
+PROBE_LOCATION=Europe \
+./run_probe.sh
+```
+Worker GET `/isps` dari central, cek tiap ISP (ping + HTTP + **status-page resmi**),
+lalu POST hasil ke `/report` dengan tag region + metadata `asn`/`location`.
+Tanpa DB lokal.
 
-**Lihat per region:** kolom "Per Region" + filter dropdown di UI, atau
-`GET /regions` dan field `regions` di `GET /dashboard`.
+**Metadata probe** (biar "Per Region" jadi per-ISP nyata): tiap probe lapor
+`PROBE_ASN` + `PROBE_LOCATION`. Dashboard menampilkan ASN tiap region, dan
+`GET /probes` balikin metadata semua probe. Jadi kolom "Per Region" menunjukkan
+mis. `eu-west(AS7713)`. Tambah probe di ASN beda = titik pandang beda = deteksi
+global-down jadi valid.
 
-> Kalau central set `REPORT_TOKEN`, tiap probe wajib kirim header
-> `Authorization: Bearer <token>` yang sama.
+Lihat per region: kolom "Per Region" di UI, `GET /regions`, `GET /probes`,
+field `regions` di `GET /dashboard` (tiap region punya `asn`/`location`).
 
+## Notifikasi Telegram (alert global-down)
+
+Bot kirim pesan kalau satu ISP **down di SEMUA region** (global-down). Set env:
+```
+TG_BOT_TOKEN=...   # dari @BotFather
+TG_CHAT_ID=...
+```
+Kosong → notifikasi off (cuma log).
+
+## Catatan
+
+- DB: `data/isp_monitor.db` (SQLite, WAL). Semua tulisan lewat central → 1 writer.
+- Interval default: 3 menit, jeda antar ISP 30 dtk. Atur `MONITOR_INTERVAL_MINUTES`.
+- ICMP butuh `ping` (di Docker: `iputils-ping`). Kalau platform blokir ICMP,
+  otomatis fallback ke HTTP latency.

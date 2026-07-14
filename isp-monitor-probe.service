@@ -1,0 +1,16 @@
+[Unit]
+Description=ISP Monitor — Probe Region (multi-region)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/isp-monitor
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/isp-monitor/.env
+ExecStart=/opt/isp-monitor/node_modules/.bin/node src/probe.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

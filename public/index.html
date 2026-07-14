@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ISP Monitor — Global Network Health</title>
+<link rel="stylesheet" href="/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<div class="bg-orbs"><span></span><span></span><span></span></div>
+
+<header>
+  <div class="brand">
+    <div class="logo">◉</div>
+    <div>
+      <h1>ISP Monitor</h1>
+      <span class="sub">Global Network Health · realtime</span>
+    </div>
+  </div>
+  <div class="head-right">
+    <div class="live"><span class="dot" id="live-dot"></span><span id="live-txt">LIVE</span></div>
+    <button id="theme-toggle" class="icon-btn" title="Light / Dark">🌓</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Panel ringkasan -->
+  <section class="summary" id="summary"></section>
+
+  <!-- Kontrol -->
+  <div class="controls">
+    <label>Kategori:
+      <select id="cat-filter"><option value="">Semua</option></select>
+    </label>
+    <label>Region:
+      <select id="region-filter"><option value="">Semua</option></select>
+    </label>
+    <button id="btn-refresh" class="btn">↻ Refresh</button>
+    <span class="hint" id="interval-hint">Cek tiap 60 dtk · update realtime via WebSocket</span>
+  </div>
+
+  <!-- Grup region / peta -->
+  <section class="card">
+    <h2>Sebaran Region</h2>
+    <div class="regions" id="region-groups"></div>
+  </section>
+
+  <!-- Grafik global -->
+  <section class="card">
+    <h2>Latensi gabungan rata-rata (realtime)</h2>
+    <canvas id="globalChart" height="90"></canvas>
+  </section>
+
+  <!-- Tabel -->
+  <section class="card">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>Target</th><th>Negara</th><th>Ping</th><th>HTTP</th><th>Status</th>
+          <th>Uptime</th><th>Tren</th><th>Per Region</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+</div>
+
+<!-- Modal detail -->
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <button class="close" id="modal-close">✕</button>
+    <h2 id="modal-title">Analitik</h2>
+    <div id="modal-spark"></div>
+    <canvas id="detailChart" height="150"></canvas>
+    <div id="modal-live" class="hint">Menunggu cek realtime…</div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
