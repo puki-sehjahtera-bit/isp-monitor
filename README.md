@@ -131,3 +131,34 @@ python3 main.py   # akses http://localhost:8000/
 > Catatan: ping ICMP butuh permission. Di Docker/`setcap` tidak wajib karena
 > health-check juga pakai HTTP. Di host Linux biasa ping jalan sebagai user.
 
+## Multi-region (pemantauan beneran "global")
+
+Satu server = satu titik pandang. Biar global, jalankan **probe worker** di
+beberapa region, semua lapor ke **1 central DB**.
+
+```
+region "asia"  ─┐
+region "eu"    ─┼─► POST /report ─► central API ─► DB (tag probe)
+region "us"    ─┘
+central        ─► API + UI (agregasi per region)
+```
+
+**Central** (Railway / server ini): jalanin normal `main.py`. Optional set
+`REPORT_TOKEN` biar `/report` butuh auth.
+
+**Probe region** (VPS/cloud manapun): jalanin worker saja dengan env:
+```bash
+PROBE_REGION=asia \
+CENTRAL_URL=https://isp-monitor-xxx.up.railway.app \
+REPORT_TOKEN=token_yang_sama \
+python3 worker.py
+```
+Worker GET `/isps` dari central, cek tiap ISP, lalu POST hasil ke `/report`
+dengan tag region. Tidak perlu DB lokal.
+
+**Lihat per region:** kolom "Per Region" + filter dropdown di UI, atau
+`GET /regions` dan field `regions` di `GET /dashboard`.
+
+> Kalau central set `REPORT_TOKEN`, tiap probe wajib kirim header
+> `Authorization: Bearer <token>` yang sama.
+

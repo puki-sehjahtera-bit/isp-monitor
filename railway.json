@@ -10,6 +10,10 @@
     "startCommand": "python main.py",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
-    "port": 8000
+    "port": 8000,
+    "env": {
+      "PROBE_REGION": "central",
+      "REPORT_TOKEN": "{{RAILWAY_REPORT_TOKEN}}"
+    }
   }
 }

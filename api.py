@@ -6,11 +6,11 @@ import logging
 from datetime import date
 from typing import Optional, List
 from pathlib import Path
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
-from pathlib import Path
+import os
 import aiosqlite
 import database as db
 
@@ -192,8 +192,14 @@ async def delete_isp(isp_id: int):
 
 @app.get("/dashboard")
 async def dashboard():
-    """Dashboard lengkap: tiap ISP + cache uptime + 5 status terbaru."""
+    """Dashboard lengkap: tiap ISP + cache uptime + 5 status terbaru + breakdown per region."""
     return await db.get_isp_dashboard()
+
+
+@app.get("/regions")
+async def regions():
+    """Daftar region/probe yang pernah lapor."""
+    return await db.get_probes()
 
 
 @app.get("/status/{isp_id}", response_model=ISPStatusResponse)
@@ -252,6 +258,34 @@ async def check_all_isps(background_tasks: BackgroundTasks):
         background_tasks.add_task(check_one_isp, isp)
     
     return {"status": "started", "isp_count": len(isps)}
+
+
+# Endpoint penerima laporan dari probe region (multi-region)
+class ReportIn(BaseModel):
+    isp_id: int
+    check_type: str
+    status: int
+    latency_ms: Optional[int] = None
+    probe: str = "local"
+
+
+@app.post("/report", status_code=200)
+async def report_status(payload: ReportIn, request: Request):
+    """Terima hasil cek dari probe region, simpan ke DB pusat.
+    Kalau REPORT_TOKEN diset, wajib header: Authorization: Bearer <token>.
+    """
+    token = os.getenv("REPORT_TOKEN", "")
+    if token:
+        auth = request.headers.get("Authorization", "")
+        if auth != f"Bearer {token}":
+            raise HTTPException(status_code=401, detail="Token salah")
+    isp = await db.get_isp_by_id(payload.isp_id)
+    if not isp:
+        raise HTTPException(status_code=404, detail="ISP tidak ditemukan")
+    await db.update_isp_status(
+        payload.isp_id, payload.check_type, payload.status, payload.latency_ms, payload.probe
+    )
+    return {"ok": True, "isp_id": payload.isp_id, "probe": payload.probe}
 
 
 # Riwayat status

@@ -52,6 +52,9 @@
   <div class="actions">
     <button class="ghost" onclick="loadAll()">🔄 Refresh</button>
     <button onclick="toggleForm()">＋ Tambah ISP</button>
+    <select id="f_region_filter" onchange="loadAll()">
+      <option value="">Semua region</option>
+    </select>
     <span id="msg"></span>
   </div>
 
@@ -67,9 +70,9 @@
 
   <table>
     <thead>
-      <tr><th>ISP</th><th>Negara</th><th>Kawasan</th><th>Status</th><th>Uptime Hari Ini</th><th>Cek</th><th></th></tr>
+      <tr><th>ISP</th><th>Negara</th><th>Kawasan</th><th>Status</th><th>Per Region</th><th>Uptime Hari Ini</th><th>Cek</th><th></th></tr>
     </thead>
-    <tbody id="rows"><tr><td colspan="7" style="color:var(--mut)">Memuat…</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="8" style="color:var(--mut)">Memuat…</td></tr></tbody>
   </table>
 </div>
 
@@ -91,20 +94,32 @@ async function loadStats(){
 
 async function loadAll(){
   await loadStats();
+  const filt = document.getElementById('f_region_filter').value;
   try{
     const r = await fetch(API+'/dashboard'); const list = await r.json();
+    const rb = await (await fetch(API+'/regions')).json();
+    // isi dropdown region (sekali)
+    const sel = document.getElementById('f_region_filter');
+    if(sel.options.length <= 1){
+      rb.forEach(rg => { const o=document.createElement('option'); o.value=rg; o.textContent=rg; sel.appendChild(o); });
+    }
     const tb = document.getElementById('rows');
-    if(!list.length){ tb.innerHTML = '<tr><td colspan="7" style="color:var(--mut)">Belum ada ISP. Tambah lewat tombol di atas.</td></tr>'; return; }
-    tb.innerHTML = list.map(isp => {
+    const shown = filt ? list.filter(i => i.regions && i.regions[filt]) : list;
+    if(!shown.length){ tb.innerHTML = '<tr><td colspan="8" style="color:var(--mut)">Belum ada data.</td></tr>'; return; }
+    tb.innerHTML = shown.map(isp => {
       const c = isp.cache;
       const up = c ? c.uptime_percent : 0;
       const ok = c && c.successful > 0;
       const pct = c ? Math.round(up) : 0;
+      const regs = isp.regions ? Object.entries(isp.regions).map(([rg,st]) =>
+        `<span class="badge ${st.status?'ok':'fail'}" title="${rg}">${esc(rg)}${st.latency_ms?` ${st.latency_ms}ms`:''}</span>`
+      ).join(' ') : '-';
       return `<tr>
         <td><b>${esc(isp.name)}</b>${isp.notes?`<div class="lat">${esc(isp.notes)}</div>`:''}</td>
         <td>${esc(isp.country)}</td>
         <td>${esc(isp.region||'-')}</td>
         <td><span class="badge ${ok?'ok':'fail'}">${ok?'ONLINE':'OFFLINE'}</span></td>
+        <td style="max-width:260px">${regs}</td>
         <td><div style="display:flex;align-items:center;gap:8px"><div class="bar"><span style="width:${pct}%"></span></div><span class="lat">${pct}%</span></div></td>
         <td><button class="ghost" onclick="checkOne(${isp.id})">Cek</button></td>
         <td><button class="danger" onclick="delIsp(${isp.id})">🗑</button></td>

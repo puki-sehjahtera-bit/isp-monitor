@@ -48,10 +48,19 @@ async def init_db():
                 check_type     TEXT    NOT NULL,
                 status         INTEGER NOT NULL,
                 latency_ms     INTEGER,
+                probe          TEXT    NOT NULL DEFAULT 'local',
                 recorded_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (isp_id) REFERENCES isp_list(id) ON DELETE CASCADE
             );
         """)
+
+        # Migrasi: tambah kolom probe kalau tabel lama belum punya
+        hcols = set()
+        async with db.execute("PRAGMA table_info(isp_status_history)") as cur:
+            for row in await cur.fetchall():
+                hcols.add(row[1])
+        if "probe" not in hcols:
+            await db.execute("ALTER TABLE isp_status_history ADD COLUMN probe TEXT NOT NULL DEFAULT 'local'")
         
         # Tabel cache uptime harian sederhana
         await db.executescript("""
@@ -137,14 +146,14 @@ async def delete_isp(isp_id: int):
         await db.commit()
 
 
-async def update_isp_status(isp_id, check_type, status, latency_ms=None):
+async def update_isp_status(isp_id, check_type, status, latency_ms=None, probe="local"):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA busy_timeout=3000")
         await db.execute(
-            "INSERT INTO isp_status_history (isp_id, check_type, status, latency_ms) VALUES (?,?,?,?)",
-            (isp_id, check_type, status, latency_ms)
+            "INSERT INTO isp_status_history (isp_id, check_type, status, latency_ms, probe) VALUES (?,?,?,?,?)",
+            (isp_id, check_type, status, latency_ms, probe)
         )
         await db.commit()
         await refresh_uptime_cache(db, isp_id)
@@ -210,7 +219,24 @@ async def get_isp_dashboard():
                 (isp_id,)
             ) as cur:
                 recent = [dict(row) for row in await cur.fetchall()]
-                
+
+            # Breakdown per region/probe (status combined terbaru tiap probe)
+            regions = {}
+            async with db.execute(
+                """SELECT probe, status, latency_ms FROM isp_status_history
+                   WHERE isp_id = ? AND check_type = 'combined'
+                   AND recorded_at = (SELECT MAX(recorded_at) FROM isp_status_history h2
+                                       WHERE h2.isp_id = isp_status_history.isp_id
+                                       AND h2.probe = isp_status_history.probe
+                                       AND h2.check_type = 'combined')""",
+                (isp_id,)
+            ) as cur:
+                for row in await cur.fetchall():
+                    regions[row["probe"]] = {
+                        "status": bool(row["status"]),
+                        "latency_ms": row["latency_ms"],
+                    }
+
         result.append({
             "id": isp_id,
             "name": isp["name"],
@@ -221,6 +247,17 @@ async def get_isp_dashboard():
             "order_index": isp["order_index"],
             "notes": isp.get("notes"),
             "cache": cache,
-            "recent_status": recent
+            "recent_status": recent,
+            "regions": regions,
         })
     return result
+
+
+async def get_probes():
+    """Daftar region/probe unik yang pernah lapor."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=3000")
+        async with db.execute("SELECT DISTINCT probe FROM isp_status_history ORDER BY probe") as cur:
+            return [row["probe"] for row in await cur.fetchall()]
