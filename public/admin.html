@@ -4,146 +4,484 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Admin — ISP Monitor</title>
-<link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/style.css?v=2" />
 <style>
-.admin-wrap { max-width:900px; margin:0 auto; padding:20px; }
-.admin-wrap h1 { font-size:20px; margin-bottom:20px; }
-.form-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:14px; }
-.form-row input, .form-row select { background:var(--card-solid); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; }
-.form-row input::placeholder { color:var(--mut); }
+:root { --admin-max: 1100px; }
+.admin-wrap { max-width: var(--admin-max); margin: 0 auto; padding: 20px; }
+.admin-wrap h1 { font-size: 22px; margin-bottom: 8px; }
+.admin-wrap .tip { color: var(--mut); font-size: 12px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.admin-wrap .back-link { display:inline-flex; align-items:center; gap:6px; margin-bottom:16px; color:var(--acc); text-decoration:none; font-size:13px; font-weight:600; }
+.admin-wrap .back-link:hover { text-decoration:underline; }
+
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:20px; backdrop-filter: blur(12px); box-shadow:var(--shadow); }
+.card h2 { margin:0 0 16px; font-size:15px; color:var(--mut); font-weight:600; text-transform:uppercase; letter-spacing:.6px; }
+
+.form-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; margin-bottom:16px; }
+.form-grid > * { min-width: 0; }
+.form-grid input, .form-grid select, .form-grid textarea {
+  background:var(--card-solid); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:13px;
+}
+.form-grid input::placeholder { color:var(--mut); }
+.form-grid .full-width { grid-column: 1 / -1; }
+.form-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+
+.btn-primary { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:600; cursor:pointer; transition:.15s; }
+.btn-primary:hover { filter:brightness(1.15); transform:translateY(-1px); }
+.btn-primary:disabled { opacity:.6; cursor:not-allowed; }
+.btn-secondary { background:transparent; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:10px 18px; font-size:13px; cursor:pointer; transition:.15s; }
+.btn-secondary:hover { border-color:var(--acc); }
+.btn-danger { background:transparent; color:var(--fail); border:1px solid var(--fail); border-radius:10px; padding:10px 18px; font-size:13px; cursor:pointer; }
+.btn-danger:hover { background:rgba(248,81,73,.1); }
+
 .admin-table { width:100%; border-collapse:collapse; font-size:13px; }
-.admin-table th, .admin-table td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
-.admin-table th { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+.admin-table th, .admin-table td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; }
+.admin-table th { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.4px; font-weight:600; }
 .admin-table td { vertical-align:middle; }
-.admin-table .del { color:var(--fail); cursor:pointer; }
 .admin-table tr:hover { background:rgba(88,166,255,.05); }
-.btn-primary { background:var(--acc); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; }
-.btn-primary:hover { filter:brightness(1.15); }
-.sm { font-size:11px; padding:4px 8px; border-radius:6px; background:transparent; border:1px solid var(--line); color:var(--txt); cursor:pointer; }
-.sm:hover { border-color:var(--acc); }
-.del-btn { color:var(--fail); }
-.del-btn:hover { border-color:var(--fail); }
-.back-link { display:inline-block; margin-bottom:16px; color:var(--acc); text-decoration:none; font-size:13px; }
-.back-link:hover { text-decoration:underline; }
-.tip { color:var(--mut); font-size:12px; margin-bottom:14px; }
-body { padding-bottom:80px; }
+.admin-table .actions { display:flex; gap:6px; }
+.btn-sm { font-size:11px; padding:6px 10px; border-radius:8px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--txt); transition:.15s; }
+.btn-sm:hover { border-color:var(--acc); }
+.btn-sm.del { color:var(--fail); border-color:var(--fail); }
+.btn-sm.del:hover { background:rgba(248,81,73,.1); }
+
+.badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+.badge.ok { background:rgba(63,185,80,.15); color:var(--ok); }
+.badge.warn { background:rgba(210,153,34,.18); color:var(--warn); }
+.badge.bad { background:rgba(248,81,73,.15); color:var(--fail); }
+.badge.idle { background:rgba(139,148,158,.15); color:var(--mut); }
+
+.section-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+.section-header h2 { margin:0; }
+.search-box { position:relative; flex:1; max-width:300px; }
+.search-box input { width:100%; padding:8px 36px 8px 12px; background:var(--card-solid); border:1px solid var(--line); border-radius:8px; color:var(--txt); font-size:13px; }
+.search-box input:focus { outline:none; border-color:var(--acc); }
+.search-box .clear { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--mut); cursor:pointer; padding:4px; display:none; }
+.search-box .clear:hover { color:var(--acc); }
+.search-box .clear.visible { display:block; }
+
+.pagination { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:16px; }
+.page-btn { padding:6px 12px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--txt); cursor:pointer; font-size:12px; }
+.page-btn:hover { border-color:var(--acc); }
+.page-btn.active { background:var(--acc); border-color:var(--acc); color:#fff; }
+.page-btn:disabled { opacity:.4; cursor:not-allowed; }
+.page-info { color:var(--mut); font-size:12px; }
+
+.toast { position:fixed; bottom:20px; right:20px; z-index:9999; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; background:var(--card-solid); border:1px solid var(--line); color:var(--txt); box-shadow:var(--shadow); transform:translateY(20px); opacity:0; transition:transform .3s ease, opacity .3s ease; pointer-events:none; max-width:90vw; }
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.ok { border-color:var(--ok); color:var(--ok); }
+.toast.err { border-color:var(--fail); color:var(--fail); }
+.toast.warn { border-color:var(--warn); color:var(--warn); }
+
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .admin-table { font-size:12px; }
+  .admin-table th, .admin-table td { padding:8px 8px; }
+  .admin-table .actions { flex-direction:column; }
+}
 </style>
 </head>
 <body>
+<div class="bg-orbs"><span></span><span></span><span></span></div>
+
+<header>
+  <div class="brand">
+    <div class="logo">◉</div>
+    <div>
+      <h1>ISP Monitor</h1>
+      <span class="sub">Global Network Health · realtime</span>
+    </div>
+  </div>
+  <div class="head-right">
+    <div class="live"><span class="dot pulse" id="live-dot"></span><span id="live-txt">LIVE</span></div>
+    <button id="theme-toggle" class="icon-btn" title="Light / Dark">🌓</button>
+  </div>
+</header>
+
 <div class="admin-wrap">
   <a href="/" class="back-link">← Kembali ke Dashboard</a>
   <h1>⚙️ Admin Panel — ISP Monitor</h1>
-  <div class="tip">Total: <b id="total-isps">0</b> ISP · <span id="last-refresh">–</span></div>
+  <div class="tip">
+    Total: <b id="total-isps">0</b> ISP · <span id="last-refresh">–</span>
+    <span id="auth-status" style="color:var(--ok)">✅ Terautentikasi</span>
+    <button class="btn-sm" onclick="logout()" style="color:var(--fail);margin-left:8px">Logout</button>
+  </div>
 
   <section class="card">
-    <h2>Tambah / Edit ISP</h2>
-    <div class="form-row">
+    <div class="section-header">
+      <h2>🔐 API Key Management</div>
+    </div>
+    <div class="form-grid" id="api-key-form">
+      <input id="ak-name" placeholder="Nama key (contoh: Mobile App, Grafana, CI/CD)" />
+      <input id="ak-rate" type="number" placeholder="Rate limit / menit" value="60" min="1" max="1000" style="max-width:180px" />
+      <div class="form-actions">
+        <button class="btn-primary" id="btn-create-key">➕ Generate API Key</button>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <table class="admin-table">
+        <thead><tr><th>Nama</th><th>Key (klik copy)</th><th>Rate/min</th><th>Dibuat</th><th>Terakhir dipakai</th><th>Status</th><th></th></tr></thead>
+        <tbody id="api-keys-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-header">
+      <h2>📡 ISP Management</h2>
+      <div class="search-box">
+        <input id="isp-search" type="search" placeholder="🔍 Cari nama, negara, ASN, IP…" autocomplete="off" aria-label="Cari ISP" />
+        <button class="clear" id="isp-search-clear" aria-label="Bersihkan">✕</button>
+      </div>
+    </div>
+
+    <div class="form-grid" id="isp-form">
       <input id="f-id" type="hidden" />
       <input id="f-name" placeholder="Nama ISP *" />
-      <input id="f-country" placeholder="Negara * (ID/US/JP/etc)" />
+      <input id="f-country" placeholder="Negara (ID/US/JP/etc) *" />
       <input id="f-region" placeholder="Region (Jakarta/Global/etc)" />
       <input id="f-isp-ip" placeholder="ISP IP (ping target)" />
       <input id="f-http-url" placeholder="HTTP URL (https://…)" />
       <input id="f-asn" placeholder="ASN" />
       <input id="f-real-ip" placeholder="Real IP (ping)" />
       <input id="f-status-url" placeholder="Status URL (JSON)" />
-      <select id="f-category"><option value="isp">ISP</option><option value="cdn">CDN</option></select>
-      <input id="f-notes" placeholder="Keterangan" />
+      <select id="f-category"><option value="isp">ISP</option><option value="cdn">CDN</option><option value="cache">CACHE</option><option value="local">LOKAL</option></select>
+      <input id="f-notes" placeholder="Keterangan" class="full-width" />
+      <input id="f-order" type="number" placeholder="Urutan (order_index)" min="0" />
+      <input id="f-asn-expected" placeholder="Expected ASN (verifikasi)" />
+      <input id="f-status-url" placeholder="Status page URL" class="full-width" />
     </div>
-    <div>
-      <button class="btn-primary" id="btn-save">💾 Simpan</button>
-      <button class="sm" id="btn-cancel" style="display:none">Batal</button>
+    <div class="form-actions">
+      <button class="btn-primary" id="btn-save-isp">💾 Simpan ISP</button>
+      <button class="btn-secondary" id="btn-cancel-isp" style="display:none">Batal</button>
     </div>
-  </section>
 
-  <section class="card">
-    <h2>Daftar ISP</h2>
-    <table class="admin-table">
-      <thead><tr><th>Nama</th><th>Negara</th><th>IP</th><th>ASN</th><th>Kategori</th><th>Aktif</th><th></th></tr></thead>
-      <tbody id="admin-tbody"></tbody>
-    </table>
+    <div style="margin-top:16px">
+      <div class="search-box">
+        <input id="isp-table-search" type="search" placeholder="🔎 Filter tabel (nama, negara, IP, ASN…)" autocomplete="off" aria-label="Filter tabel ISP" />
+        <button class="clear" id="isp-table-search-clear" aria-label="Bersihkan">✕</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>Nama</th><th>Negara</th><th>IP / Target</th><th>ASN</th><th>Kategori</th><th>Aktif</th><th></th></tr></thead>
+        <tbody id="admin-tbody"></tbody>
+      </table>
+      <div class="pagination" id="isp-pagination"></div>
+    </div>
   </section>
 </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/app.js?v=2" defer></script>
 <script>
-async function load() {
-  const r = await fetch("/isps?is_active=1");
-  const isps = await r.json();
-  const tbody = document.getElementById("admin-tbody");
-  tbody.innerHTML = isps.map((s) => `<tr>
-    <td><b>${s.name}</b></td>
-    <td>${s.country}</td>
-    <td style="font-size:11px;color:var(--mut)">${s.real_ip || s.isp_ip || "–"}</td>
-    <td>${s.asn ? "AS" + s.asn : "–"}</td>
-    <td>${s.category || "isp"}</td>
-    <td>${s.is_active ? "✅" : "❌"}</td>
-    <td>
-      <button class="sm" onclick="edit(${s.id})">✏️</button>
-      <button class="sm del-btn" onclick="del(${s.id})">🗑️</button>
-    </td>
-  </tr>`).join("");
-  document.getElementById("total-isps").textContent = isps.length;
-  document.getElementById("last-refresh").textContent = new Date().toLocaleTimeString();
-}
+(function() {
+  // ── Auth ──
+  const TOKEN = sessionStorage.getItem("admin_token") || prompt("Admin Token:") || "";
+  if (!TOKEN) { window.location.href = "/"; throw new Error("No token"); }
+  sessionStorage.setItem("admin_token", TOKEN);
+  function authHdr() { return { Authorization: "Bearer " + TOKEN }; }
 
-async function save() {
-  const id = document.getElementById("f-id").value;
-  const body = {
-    name: document.getElementById("f-name").value,
-    country: document.getElementById("f-country").value,
-    region: document.getElementById("f-region").value,
-    isp_ip: document.getElementById("f-isp-ip").value,
-    http_url: document.getElementById("f-http-url").value,
-    asn: document.getElementById("f-asn").value,
-    real_ip: document.getElementById("f-real-ip").value,
-    status_url: document.getElementById("f-status-url").value,
-    category: document.getElementById("f-category").value,
-    notes: document.getElementById("f-notes").value,
-  };
-  if (!body.name || !body.country) return alert("Nama dan Negara wajib diisi");
-  try {
-    if (id) {
-      await fetch("/isps/" + id, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    } else {
-      await fetch("/isps", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    }
-    clearForm(); load();
-  } catch (e) { alert("Gagal: " + e.message); }
-}
+  // ── Toast ──
+  function toast(msg, type = "info") {
+    const el = document.createElement("div");
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add("show"), 10);
+    setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 3000);
+  }
+  window.toast = toast;
 
-function edit(id) {
-  fetch("/isps/" + id).then((r) => r.json()).then((s) => {
-    document.getElementById("f-id").value = s.id;
-    document.getElementById("f-name").value = s.name || "";
-    document.getElementById("f-country").value = s.country || "";
-    document.getElementById("f-region").value = s.region || "";
-    document.getElementById("f-isp-ip").value = s.isp_ip || "";
-    document.getElementById("f-http-url").value = s.http_url || "";
-    document.getElementById("f-asn").value = s.asn || "";
-    document.getElementById("f-real-ip").value = s.real_ip || "";
-    document.getElementById("f-status-url").value = s.status_url || "";
-    document.getElementById("f-category").value = s.category || "isp";
-    document.getElementById("f-notes").value = s.notes || "";
-    document.getElementById("btn-cancel").style.display = "inline";
-    document.getElementById("btn-save").textContent = "💾 Update";
+  // ── Socket ──
+  const socket = io({ timeout: 20000 });
+  socket.on("connect", () => {
+    document.getElementById("live-dot").parentElement.classList.remove("off");
+    document.getElementById("live-dot").classList.add("pulse");
+    document.getElementById("live-txt").textContent = "LIVE";
   });
-}
+  socket.on("disconnect", () => {
+    document.getElementById("live-dot").parentElement.classList.add("off");
+    document.getElementById("live-dot").classList.remove("pulse");
+    document.getElementById("live-txt").textContent = "TIDAK TERHUBUNG";
+  });
 
-function del(id) {
-  if (!confirm("Hapus ISP ini?")) return;
-  fetch("/isps/" + id, { method: "DELETE" }).then(() => load());
-}
+  // ── Theme ──
+  function applyTheme(t) { document.body.classList.toggle("light", t === "light"); }
+  applyTheme(localStorage.getItem("theme") || "dark");
+  document.getElementById("theme-toggle").onclick = () => {
+    const t = document.body.classList.contains("light") ? "dark" : "light";
+    applyTheme(t); localStorage.setItem("theme", t);
+  };
 
-function clearForm() {
-  document.getElementById("f-id").value = "";
-  document.querySelectorAll("#f-name, #f-country, #f-region, #f-isp-ip, #f-http-url, #f-asn, #f-real-ip, #f-status-url, #f-notes").forEach((e) => e.value = "");
-  document.getElementById("f-category").value = "isp";
-  document.getElementById("btn-cancel").style.display = "none";
-  document.getElementById("btn-save").textContent = "💾 Simpan";
-}
+  // ── State ──
+  let allIsps = [];
+  let currentPage = 1;
+  const PAGE_SIZE = 20;
+  let searchQuery = "";
 
-document.getElementById("btn-save").onclick = save;
-document.getElementById("btn-cancel").onclick = clearForm;
-load();
+  // ── Auth header helper ──
+  function authHdr() { return { Authorization: "Bearer " + sessionStorage.getItem("admin_token") }; }
+
+  // ── Toast ──
+  function toast(msg, type = "info") {
+    const el = document.createElement("div");
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add("show"), 10);
+    setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 3000);
+  }
+
+  // ── Logout ──
+  function logout() {
+    sessionStorage.removeItem("admin_token");
+    location.reload();
+  }
+  window.logout = logout;
+
+  // ── Load ISPs ──
+  async function loadIsps() {
+    try {
+      const r = await fetch("/isps", { headers: { Authorization: "Bearer " + TOKEN } });
+      if (r.status === 401) { alert("Token invalid/expired"); logout(); return; }
+      allIsps = await r.json();
+      renderTable();
+      document.getElementById("total-isps").textContent = allIsps.length;
+      document.getElementById("last-refresh").textContent = "Terupdate: " + new Date().toLocaleTimeString();
+    } catch (e) { console.error(e); }
+  }
+
+  // ── Render table ──
+  function renderTable() {
+    const q = document.getElementById("isp-table-search").value.toLowerCase();
+    const filtered = allIsps.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.country.toLowerCase().includes(q) ||
+      (s.isp_ip || "").includes(q) ||
+      (s.real_ip || "").includes(q) ||
+      (s.asn || "").toString().includes(q) ||
+      (s.asn_expected || "").toString().includes(q)
+    );
+    const tbody = document.getElementById("admin-tbody");
+    tbody.innerHTML = filtered.map(s => `
+      <tr>
+        <td style="font-size:11px;color:var(--mut)">${s.id}</td>
+        <td><b>${s.name}</b></td>
+        <td>${s.country}${s.region && s.region !== "Global" ? " · " + s.region : ""}</td>
+        <td style="font-size:11px;color:var(--mut)">${s.real_ip || s.isp_ip || "–"}</td>
+        <td>${s.asn ? "AS" + s.asn : (s.asn_expected ? "AS" + s.asn_expected + " (exp)" : "–")}</td>
+        <td><span class="badge ${s.category === "cdn" ? "ok" : s.category === "cache" ? "warn" : s.category === "local" ? "idle" : ""}">${s.category || "isp"}</span></td>
+        <td>${s.is_active ? "✅" : "❌"}</td>
+        <td>
+          <div class="actions">
+            <button class="btn-sm" onclick="edit(${s.id})" title="Edit">✏️</button>
+            <button class="btn-sm del" onclick="del(${s.id})" title="Hapus">🗑️</button>
+          </div>
+        </td>
+      </tr>`).join("");
+    document.getElementById("total-isps").textContent = allIsps.length;
+    document.getElementById("last-refresh").textContent = "Terupdate: " + new Date().toLocaleTimeString();
+  }
+
+  // ── Form handling ──
+  function clearForm() {
+    document.getElementById("f-id").value = "";
+    ["f-name","f-country","f-region","f-isp-ip","f-http-url","f-asn","f-real-ip","f-status-url","f-notes","f-order","f-asn-expected","f-status-url"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = "";
+    });
+    document.getElementById("f-category").value = "isp";
+    document.getElementById("btn-cancel-isp").style.display = "none";
+    document.getElementById("btn-save-isp").textContent = "💾 Simpan ISP";
+    document.getElementById("f-id").value = "";
+  }
+
+  window.clearForm = clearForm;
+
+  async function saveIsp() {
+    const id = document.getElementById("f-id").value;
+    const body = {
+      name: document.getElementById("f-name").value,
+      country: document.getElementById("f-country").value,
+      region: document.getElementById("f-region").value,
+      isp_ip: document.getElementById("f-isp-ip").value,
+      http_url: document.getElementById("f-http-url").value,
+      asn: document.getElementById("f-asn").value ? parseInt(document.getElementById("f-asn").value) : null,
+      real_ip: document.getElementById("f-real-ip").value,
+      status_url: document.getElementById("f-status-url").value,
+      category: document.getElementById("f-category").value,
+      notes: document.getElementById("f-notes").value,
+      order_index: document.getElementById("f-order").value ? parseInt(document.getElementById("f-order").value) : 0,
+      asn_expected: document.getElementById("f-asn-expected").value ? parseInt(document.getElementById("f-asn-expected").value) : null,
+      status_url: document.getElementById("f-status-url").value,
+      is_active: true,
+    };
+    if (!body.name || !body.country) return toast("Nama dan Negara wajib diisi", "err");
+
+    try {
+      const hdrs = { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN };
+      const method = document.getElementById("f-id").value ? "PUT" : "POST";
+      const url = method === "PUT" ? "/isps/" + document.getElementById("f-id").value : "/isps";
+      const r = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(await r.text());
+      clearForm(); loadIsps(); toast(method === "PUT" ? "ISP diupdate" : "ISP ditambahkan", "ok");
+    } catch (e) { toast("Gagal: " + e.message, "err"); }
+  }
+
+  function edit(id) {
+    fetch("/isps/" + id).then(r => r.json()).then(s => {
+      document.getElementById("f-id").value = s.id;
+      document.getElementById("f-name").value = s.name || "";
+      document.getElementById("f-country").value = s.country || "";
+      document.getElementById("f-region").value = s.region || "";
+      document.getElementById("f-isp-ip").value = s.isp_ip || "";
+      document.getElementById("f-http-url").value = s.http_url || "";
+      document.getElementById("f-asn").value = s.asn || "";
+      document.getElementById("f-real-ip").value = s.real_ip || "";
+      document.getElementById("f-status-url").value = s.status_url || "";
+      document.getElementById("f-category").value = s.category || "isp";
+      document.getElementById("f-notes").value = s.notes || "";
+      document.getElementById("f-order").value = s.order_index || 0;
+      document.getElementById("f-asn-expected").value = s.asn_expected || "";
+      document.getElementById("f-status-url").value = s.status_url || "";
+      document.getElementById("btn-cancel-isp").style.display = "inline";
+      document.getElementById("btn-save-isp").textContent = "💾 Update ISP";
+      document.getElementById("f-name").focus();
+    });
+  }
+  window.edit = edit;
+
+  async function del(id) {
+    if (!confirm("Hapus ISP ini?")) return;
+    try {
+      await fetch("/isps/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
+      loadIsps(); toast("ISP dihapus", "ok");
+    } catch (e) { toast("Gagal hapus: " + e.message, "err"); }
+  }
+  window.del = del;
+
+  // ── Search clear ──
+  document.getElementById("isp-table-search").addEventListener("input", e => {
+    document.getElementById("isp-search-clear").hidden = !e.target.value;
+    searchQuery = e.target.value.toLowerCase();
+    renderTable();
+  });
+  document.getElementById("isp-search-clear").onclick = () => {
+    document.getElementById("isp-table-search").value = "";
+    searchQuery = "";
+    document.getElementById("isp-search-clear").hidden = true;
+    renderTable();
+  };
+
+  // ── API Keys ──
+  async function loadApiKeys() {
+    try {
+      const r = await fetch("/api/v1/keys", { headers: { Authorization: "Bearer " + TOKEN } });
+      if (r.status === 401) { alert("Token invalid"); return; }
+      const keys = await r.json();
+      const tbody = document.getElementById("api-keys-tbody");
+      tbody.innerHTML = keys.map(k => `
+        <tr>
+          <td>${k.name}</td>
+          <td style="font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Klik untuk copy" onclick="navigator.clipboard.writeText('${k.key || ''}');toast('API Key disalin!','ok')">${k.key || '(hidden)'}</td>
+          <td>${k.rate_limit}</td>
+          <td>${new Date(k.created_at).toLocaleString()}</td>
+          <td>${k.last_used ? new Date(k.last_used).toLocaleString() : '—'}</td>
+          <td><span class="badge ${k.is_active ? 'ok' : 'bad'}">${k.is_active ? 'Aktif' : 'Dicabut'}</span></td>
+          <td><button class="btn-sm del" onclick="revokeKey(${k.id})">🗑️</button></td>
+        </tr>
+      `).join("");
+    } catch (e) { console.error(e); }
+  }
+
+  async function createApiKey() {
+    const name = document.getElementById("ak-name").value;
+    const rateLimit = parseInt(document.getElementById("ak-rate").value) || 60;
+    if (!name) return toast("Nama key wajib diisi", "err");
+    try {
+      const r = await fetch("/api/v1/keys", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify({ name, rateLimit }) });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Gagal buat key");
+      toast("API Key dibuat: " + data.key, "ok");
+      document.getElementById("ak-name").value = "";
+      loadApiKeys();
+    } catch (e) { toast("Gagal: " + e.message, "err"); }
+  }
+
+  async function revokeKey(id) {
+    if (!confirm("Cabut API key ini?")) return;
+    try {
+      await fetch("/api/v1/keys/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
+      loadApiKeys(); toast("Key dicabut", "ok");
+    } catch (e) { toast("Gagal: " + e.message, "err"); }
+  }
+  window.revokeKey = revokeKey;
+
+  // ── Event listeners ──
+  document.getElementById("btn-save-isp").onclick = () => save();
+  document.getElementById("btn-cancel-isp").onclick = clearForm;
+  document.getElementById("btn-create-key").onclick = createApiKey;
+
+  // ── Search clear button ──
+  const ispTableSearch = document.getElementById("isp-table-search");
+  const clearBtn = document.getElementById("isp-table-search-clear");
+  ispTableSearch.addEventListener("input", e => {
+    clearBtn.hidden = !e.target.value;
+    renderTable();
+  });
+  clearBtn.onclick = () => { document.getElementById("isp-table-search").value = ""; clearBtn.hidden = true; renderTable(); };
+
+  // ── Init ──
+  async function init() {
+    const token = sessionStorage.getItem("admin_token");
+    if (!token) { window.location.href = "/"; return; }
+    document.getElementById("auth-status").textContent = "✅ Terautentikasi";
+    await Promise.all([loadIsps(), loadApiKeys()]);
+    // Theme
+    document.body.classList.toggle("light", localStorage.getItem("theme") === "light");
+    document.getElementById("theme-toggle").onclick = () => {
+      const t = document.body.classList.contains("light") ? "dark" : "light";
+      document.body.classList.toggle("light", t === "light");
+      localStorage.setItem("theme", t);
+    };
+    // Save ISP form
+    document.getElementById("btn-save-isp").onclick = async () => {
+      const id = document.getElementById("f-id").value;
+      const body = {
+        name: document.getElementById("f-name").value,
+        country: document.getElementById("f-country").value,
+        region: document.getElementById("f-region").value,
+        isp_ip: document.getElementById("f-isp-ip").value,
+        http_url: document.getElementById("f-http-url").value,
+        asn: document.getElementById("f-asn").value ? parseInt(document.getElementById("f-asn").value) : null,
+        real_ip: document.getElementById("f-real-ip").value,
+        status_url: document.getElementById("f-status-url").value,
+        category: document.getElementById("f-category").value,
+        notes: document.getElementById("f-notes").value,
+        order_index: document.getElementById("f-order").value ? parseInt(document.getElementById("f-order").value) : 0,
+        asn_expected: document.getElementById("f-asn-expected").value ? parseInt(document.getElementById("f-asn-expected").value) : null,
+        status_url: document.getElementById("f-status-url").value,
+        is_active: true,
+      };
+      if (!body.name || !body.country) return toast("Nama dan Negara wajib diisi", "err");
+      try {
+        const method = document.getElementById("f-id").value ? "PUT" : "POST";
+        const url = id ? "/isps/" + document.getElementById("f-id").value : "/isps";
+        const r = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error(await r.text());
+        clearForm(); loadIsps(); toast(method === "PUT" ? "ISP diupdate" : "ISP ditambahkan", "ok");
+      } catch (e) { toast("Gagal: " + e.message, "err"); }
+    };
+    document.getElementById("btn-save-isp").onclick = saveIsp;
+    document.getElementById("btn-cancel-isp").onclick = clearForm;
+    document.getElementById("btn-create-key").onclick = createApiKey;
+    loadIsps();
+    loadApiKeys();
+    // Theme toggle
+    document.getElementById("theme-toggle").onclick = () => {
+      const t = document.body.classList.contains("light") ? "dark" : "light";
+      document.body.classList.toggle("light", t === "light");
+      localStorage.setItem("theme", t);
+    };
+    document.body.classList.toggle("light", localStorage.getItem("theme") === "light");
+  })();
 </script>
 </body>
 </html>

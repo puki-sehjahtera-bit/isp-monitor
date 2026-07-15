@@ -9,18 +9,23 @@
 <meta property="og:title" content="ISP Monitor — Global Network Health" />
 <meta property="og:description" content="Pantau kesehatan ISP global secara real-time. Status ping, HTTP, uptime, dan latensi." />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://ispmonitor.my.id" />
+<meta property="og:url" content="https://isp-monitor.my.id" />
+<meta property="og:image" content="https://isp-monitor.my.id/og-image.svg" />
 <link rel="manifest" href="/manifest.json" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>ISP Monitor — Global Network Health</title>
-<link rel="stylesheet" href="/style.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/socket.io/socket.io.js"></script>
+<link rel="stylesheet" href="/style.css?v=2" />
+<script defer src="/socket.io/socket.io.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await reg.update();
+    } catch (e) {}
+  });
 }
 </script>
 </head>
@@ -36,7 +41,7 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
   <div class="head-right">
-    <div class="live"><span class="dot" id="live-dot"></span><span id="live-txt">LIVE</span></div>
+    <div class="live"><span class="dot pulse" id="live-dot"></span><span id="live-txt">LIVE</span></div>
     <button id="theme-toggle" class="icon-btn" title="Light / Dark">🌓</button>
   </div>
 </header>
@@ -64,7 +69,10 @@ if ('serviceWorker' in navigator) {
 
   <!-- Kontrol -->
   <div class="controls">
-    <input id="search-input" type="search" placeholder="🔍 Cari ISP…" class="search-input" />
+    <div class="search-wrapper">
+      <input id="search-input" type="search" placeholder="🔍 Cari ISP…" class="search-input" aria-label="Cari ISP" autocomplete="off" />
+      <button id="search-clear" class="search-clear" aria-label="Bersihkan pencarian" hidden>✕</button>
+    </div>
     <label>Kategori:
       <select id="cat-filter"><option value="">Semua</option></select>
     </label>
@@ -80,7 +88,7 @@ if ('serviceWorker' in navigator) {
         <option value="status">Status (down dulu)</option>
       </select>
     </label>
-    <button id="btn-refresh" class="btn">↻ Refresh</button>
+    <button id="btn-refresh" class="btn" aria-label="Refresh data">↻ Refresh</button>
     <div class="ctrl-group">
       <button id="btn-export-csv" class="btn sm" title="Export CSV">📥 CSV</button>
       <button id="btn-export-json" class="btn sm" title="Export JSON">📥 JSON</button>
@@ -101,6 +109,8 @@ if ('serviceWorker' in navigator) {
     <canvas id="globalChart" height="90"></canvas>
   </section>
 
+  <div class="mid-brand">Cah Panggul</div>
+
   <!-- Grid kartu ISP -->
   <section class="card">
     <div class="tabs">
@@ -113,25 +123,19 @@ if ('serviceWorker' in navigator) {
   </section>
 
   <!-- Bagian afiliasi & share -->
-  <section class="card promo-row">
-    <div class="promo-item">
+  <section class="card promo-row" id="promo-section">
+    <div class="promo-item" data-category="game_booster">
       <span class="promo-icon">⚡</span>
       <div>
         <div class="promo-title">ISP lemot? Coba Game Booster</div>
-        <div class="promo-links">
-          <a href="https://www.exitlag.com/affiliates" target="_blank" rel="noopener">ExitLag</a>
-          <a href="https://www.gearupbooster.com" target="_blank" rel="noopener">GearUP Booster</a>
-        </div>
+        <div class="promo-links" id="promo-game_booster"></div>
       </div>
     </div>
-    <div class="promo-item">
+    <div class="promo-item" data-category="vpn">
       <span class="promo-icon">🔒</span>
       <div>
         <div class="promo-title">VPN untuk koneksi aman & cepat</div>
-        <div class="promo-links">
-          <a href="https://www.nordvpn.com" target="_blank" rel="noopener">NordVPN</a>
-          <a href="https://www.expressvpn.com" target="_blank" rel="noopener">ExpressVPN</a>
-        </div>
+        <div class="promo-links" id="promo-vpn"></div>
       </div>
     </div>
     <div class="promo-item share-btns">
@@ -139,7 +143,7 @@ if ('serviceWorker' in navigator) {
       <div>
         <div class="promo-title">Bagikan ke:</div>
         <div class="promo-links">
-          <button onclick="shareTwitter()" class="share-btn x">𝕏 Twitter</button>
+          <button onclick="shareTikTok()" class="share-btn tk">🎵 TikTok</button>
           <button onclick="shareLinkedin()" class="share-btn in">In LinkedIn</button>
           <button onclick="shareCopyUrl()" class="share-btn cp">🔗 Salin URL</button>
         </div>
@@ -148,17 +152,76 @@ if ('serviceWorker' in navigator) {
   </section>
 </div>
 
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="foot-brand">
+      <div class="foot-logo">◉</div>
+      <div>
+        <div class="foot-name">ISP Monitor</div>
+        <div class="foot-desc">Pemantau kesehatan jaringan global secara real-time</div>
+      </div>
+    </div>
+    <div class="foot-mid">Cah Panggul</div>
+    <div class="foot-links">
+      <button onclick="shareTikTok()" class="foot-btn" title="TikTok">🎵</button>
+      <a href="https://saweria.co/cahpanggul" target="_blank" rel="noopener" class="foot-btn" title="Dukung Saya">☕</a>
+    </div>
+  </div>
+  <div class="foot-copy">© 2026 Cah Panggul · Made with ❤️</div>
+</footer>
+
 <!-- Modal detail -->
 <div id="modal" class="modal hidden">
   <div class="modal-box">
     <button class="close" id="modal-close">✕</button>
-    <h2 id="modal-title">Analitik</h2>
+    <div class="modal-head">
+      <h2 id="modal-title">Analitik</h2>
+      <div class="modal-range" id="modal-range">
+        <button class="range-btn active" data-range="24h">24j</button>
+        <button class="range-btn" data-range="7d">7h</button>
+        <button class="range-btn" data-range="30d">30h</button>
+      </div>
+    </div>
     <div id="modal-spark"></div>
     <canvas id="detailChart" height="150"></canvas>
     <div id="modal-live" class="hint">Menunggu cek realtime…</div>
+    <div id="modal-timeline" class="modal-timeline"></div>
+    <div class="modal-actions">
+      <button onclick="window.downloadChart()" class="btn sm">📷 Download</button>
+      <button onclick="window.compareIsp()" class="btn sm">📊 Bandingkan</button>
+    </div>
   </div>
 </div>
 
-<script src="/app.js"></script>
+<!-- Modal compare -->
+<div id="compare-modal" class="modal hidden">
+  <div class="modal-box">
+    <button class="close" id="compare-close">✕</button>
+    <h2>Bandingkan ISP</h2>
+    <div class="comp-select">
+      <select id="comp-a"></select>
+      <span>vs</span>
+      <select id="comp-b"></select>
+    </div>
+    <div class="comp-charts">
+      <div class="comp-col"><h3 id="comp-a-name"></h3><canvas id="compChartA" height="120"></canvas></div>
+      <div class="comp-col"><h3 id="comp-b-name"></h3><canvas id="compChartB" height="120"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Speed test -->
+<section class="card liveping-section" id="liveping-section">
+  <h2>Live Ping Test ⚡ — Cek Koneksi Lo</h2>
+  <div class="lp-controls">
+    <button class="btn" id="btn-liveping">🏓 Mulai Live Ping</button>
+    <span class="hint" id="lp-status">Tes latensi browser ke semua server target secara live</span>
+  </div>
+  <div class="lp-summary" id="lp-summary"></div>
+  <div class="lp-results" id="lp-results"></div>
+</section>
+
+<script src="/chart.min.js" defer></script>
+<script src="/app.js?v=2" defer></script>
 </body>
 </html>

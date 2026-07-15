@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://isp-monitor.my.id/sitemap.xml

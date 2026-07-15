@@ -76,6 +76,20 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_hist_isp ON isp_status_history(isp_id, recorded_at);
+  CREATE INDEX IF NOT EXISTS idx_hist_isp_type_time ON isp_status_history(isp_id, check_type, recorded_at);
+  CREATE INDEX IF NOT EXISTS idx_hist_rt ON isp_status_history(recorded_at);
+  CREATE INDEX IF NOT EXISTS idx_hist_stat ON isp_status_history(isp_id, recorded_at) WHERE check_type = 'status';
+  CREATE INDEX IF NOT EXISTS idx_hist_comb ON isp_status_history(isp_id, recorded_at) WHERE check_type = 'combined';
+
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_hash    TEXT NOT NULL UNIQUE,
+    name        TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used   DATETIME,
+    is_active   INTEGER DEFAULT 1,
+    rate_limit  INTEGER DEFAULT 60
+  );
 `);
 
 // Migrasi kolom opsional (DB lama yang dibuat sebelum ada kolom ini).
@@ -183,11 +197,17 @@ function getHistory(isp_id, { check_type, since, limit = 100 } = {}) {
   return db.prepare(q).all(...p);
 }
 
+let _probesCache = null, _probesCacheTime = 0;
+
 function getProbes() {
-  return db
+  const now = Date.now();
+  if (_probesCache && now - _probesCacheTime < CACHE_TTL) return _probesCache;
+  _probesCache = db
     .prepare("SELECT DISTINCT probe FROM isp_status_history ORDER BY probe")
     .all()
     .map((r) => r.probe);
+  _probesCacheTime = Date.now();
+  return _probesCache;
 }
 
 function upsertProbe(probe, asn = "", location = "") {
@@ -230,58 +250,51 @@ function setAlertState(isp_id, state) {
   ).run(isp_id, state | 0);
 }
 
+let _dashCache = null, _dashCacheTime = 0;
+const CACHE_TTL = 2000;
+
 function getDashboard() {
+  const now = Date.now();
+  if (_dashCache && now - _dashCacheTime < CACHE_TTL) return _dashCache;
   const day = todayISO();
   const isps = getAllIsps();
-  return isps.map((isp) => {
-    const cache = db
-      .prepare("SELECT * FROM isp_uptime_cache WHERE isp_id = ? AND check_date = ?")
-      .get(isp.id, day) || null;
-    const recent = db
-      .prepare("SELECT status, latency_ms, recorded_at, probe FROM isp_status_history WHERE isp_id = ? ORDER BY recorded_at DESC LIMIT 5")
-      .all(isp.id);
-    const regionRows = db
-      .prepare(
-        `SELECT probe, status, latency_ms FROM isp_status_history
-         WHERE isp_id = ? AND check_type = 'combined'
-           AND recorded_at = (SELECT MAX(recorded_at) FROM isp_status_history h2
-                              WHERE h2.isp_id = isp_status_history.isp_id AND h2.probe = isp_status_history.probe AND h2.check_type = 'combined')`
-      )
-      .all(isp.id);
+  const ids = isps.map(i => i.id);
+  const ph = ids.map(() => "?").join(",");
+
+  const caches = {};
+  db.prepare(`SELECT * FROM isp_uptime_cache WHERE isp_id IN (${ph}) AND check_date = ?`)
+    .all(...ids, day).forEach(r => { caches[r.isp_id] = r; });
+
+  const pmeta = getProbesMeta();
+
+  // Batch per ISP — SQLite single-threaded, tapi kita kurangi jumlah query
+  const getRecent = db.prepare("SELECT status, latency_ms, recorded_at, probe FROM isp_status_history WHERE isp_id = ? ORDER BY recorded_at DESC LIMIT 5");
+  const getRegion = db.prepare("SELECT probe, status, latency_ms FROM isp_status_history WHERE isp_id = ? AND check_type = 'combined' AND recorded_at >= datetime('now', '-5 minutes')");
+  const getOff = db.prepare("SELECT status, latency_ms FROM isp_status_history WHERE isp_id = ? AND check_type = 'status' ORDER BY recorded_at DESC LIMIT 1");
+
+  const result = isps.map((isp) => {
+    const cache = caches[isp.id] || null;
+    const recent = getRecent.all(isp.id);
+    const regionRows = getRegion.all(isp.id);
     const regions = {};
-    const pmeta = getProbesMeta();
     for (const r of regionRows) {
       const meta = pmeta[r.probe] || {};
       regions[r.probe] = { status: !!r.status, latency_ms: r.latency_ms, asn: meta.asn || "", location: meta.location || "" };
     }
-    // Status resmi terbaru (dari status-page) utk ISP yg punya status_url.
-    const off = db
-      .prepare(
-        `SELECT status, latency_ms FROM isp_status_history
-         WHERE isp_id = ? AND check_type = 'status'
-         ORDER BY recorded_at DESC LIMIT 1`
-      )
-      .get(isp.id);
-    const official = off ? { ok: !!off.status, code: off.latency_ms } : null;
+    const off = getOff.get(isp.id);
     return {
-      id: isp.id,
-      name: isp.name,
-      country: isp.country,
-      region: isp.region,
-      category: isp.category || "isp",
-      asn: isp.asn || "",
-      real_ip: isp.real_ip || "",
-      status_url: isp.status_url || "",
-      isp_ip: isp.isp_ip,
-      http_url: isp.http_url,
-      order_index: isp.order_index,
-      notes: isp.notes,
-      cache,
-      recent_status: recent,
-      regions,
-      official,
+      id: isp.id, name: isp.name, country: isp.country, region: isp.region,
+      category: isp.category || "isp", asn: isp.asn || "",
+      real_ip: isp.real_ip || "", status_url: isp.status_url || "",
+      isp_ip: isp.isp_ip, http_url: isp.http_url,
+      order_index: isp.order_index, notes: isp.notes,
+      cache, recent_status: recent, regions,
+      official: off ? { ok: !!off.status, code: off.latency_ms } : null,
     };
   });
+  _dashCache = result;
+  _dashCacheTime = Date.now();
+  return result;
 }
 
 function pruneOldHistory(days = 30) {
@@ -302,7 +315,49 @@ function upsertVerify(isp_id, v) {
        expected_asn=excluded.expected_asn, match=excluded.match, note=excluded.note, checked_at=CURRENT_TIMESTAMP`
   ).run(isp_id, v.ip, v.asn, v.expected, v.match === null ? null : v.match ? 1 : 0, v.note || "");
 }
+
+// API Keys
+const crypto = require("crypto");
+
+function hashKey(key) {
+  return crypto.createHash("sha256").update(key).digest("hex");
+}
+
+function genKey() {
+  return "ispm_" + crypto.randomBytes(24).toString("base64url");
+}
+
+function createApiKey({ name, rateLimit = 60 }) {
+  const key = genKey();
+  const hash = hashKey(key);
+  db.prepare("INSERT INTO api_keys (key_hash, name, rate_limit) VALUES (?,?,?)")
+    .run(hash, name, rateLimit);
+  return { key, name, rateLimit };
+}
+
+function getApiKey(key) {
+  const hash = hashKey(key);
+  return db.prepare("SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1").get(hash);
+}
+
+function listApiKeys() {
+  return db.prepare("SELECT id, name, created_at, last_used, is_active, rate_limit FROM api_keys ORDER BY created_at DESC").all();
+}
+
+function revokeApiKey(id) {
+  db.prepare("UPDATE api_keys SET is_active = 0 WHERE id = ?").run(id);
+}
+
+function updateApiKeyLastUsed(key) {
+  const hash = hashKey(key);
+  db.prepare("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE key_hash = ?").run(hash);
+}
+
+let _statsCache = null, _statsCacheTime = 0;
+
 function getStats() {
+  const now = Date.now();
+  if (_statsCache && now - _statsCacheTime < CACHE_TTL) return _statsCache;
   const day = todayISO();
   const total_isps = getAllIsps().length;
   const row = db
@@ -314,13 +369,15 @@ function getStats() {
     .get(day);
   const checks = row.total_checks || 0;
   const ok = row.successful_checks || 0;
-  return {
+  _statsCache = {
     total_isps,
     checks_today: checks,
     successful_checks: ok,
     overall_uptime_percent: checks ? Math.round((ok / checks) * 100 * 100) / 100 : 0,
     last_updated: row.last_updated || null,
   };
+  _statsCacheTime = Date.now();
+  return _statsCache;
 }
 
 module.exports = {
@@ -345,4 +402,9 @@ module.exports = {
   pruneOldHistory,
   getVerify,
   upsertVerify,
+  createApiKey,
+  getApiKey,
+  listApiKeys,
+  revokeApiKey,
+  updateApiKeyLastUsed,
 };

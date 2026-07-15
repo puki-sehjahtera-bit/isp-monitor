@@ -29,7 +29,7 @@ function backupDb() {
   cleanupOldBackups();
 }
 
-function cleanupOldBackups(maxAgeDays = 7) {
+function cleanupOldBackups(maxAgeDays = 1) {
   const maxAge = maxAgeDays * 86400000;
   const now = Date.now();
   try {

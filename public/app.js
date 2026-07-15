@@ -1,9 +1,33 @@
 "use strict";
-const socket = io();
+const socket = io({ timeout: 20000 });
 const store = {};
-let openId = null, detailChart = null, globalChart = null;
+window.onerror = (m) => console.error("JS:", m);
+let openId = null, detailChart = null, globalChart = null, compChartA = null, compChartB = null;
 let countryFilter = "", catFilter = "", regionFilter = "", searchQuery = "", sortKey = "id", scope = "all";
+let compactView = false, searchDebounce = null;
 const globalPts = [];
+
+function toast(msg, type = "info") {
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add("show"), 10);
+  setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 3000);
+}
+window.toast = toast;
+
+// Real-time ISP alert (dedup 5 min)
+let lastAlert = new Map();
+function alertIsp(ispName, status, latency) {
+  const key = ispName + status;
+  const now = Date.now();
+  if (lastAlert.get(key) && now - lastAlert.get(key) < 5 * 60 * 1000) return;
+  lastAlert.set(key, now);
+  const emoji = status === "down" ? "🔴" : status === "up" ? "🟢" : "🟡";
+  const msg = `${emoji} ${ispName} ${status === "down" ? "DOWN" : status === "up" ? "RECOVERED" : "DEGRADED"}${latency ? ` (${latency}ms)` : ""}`;
+  toast(msg, status === "down" ? "err" : status === "up" ? "ok" : "warn");
+}
 
 const FLAGS = { ID:"🇮🇩", US:"🇺🇸", PH:"🇵🇭", MY:"🇲🇾", SG:"🇸🇬", JP:"🇯🇵", DE:"🇩🇪", FR:"🇫🇷", BR:"🇧🇷", SE:"🇸🇪", Global:"🌐" };
 const CNAMES = { ID:"Indonesia", US:"Amerika", PH:"Filipina", MY:"Malaysia", SG:"Singapura", JP:"Jepang", DE:"Jerman", FR:"Prancis", BR:"Brazil", SE:"Swedia", Global:"Global" };
@@ -23,36 +47,299 @@ function officialBadge(s){
 }
 function isOnline(s){ return s.regions && Object.values(s.regions).some((x) => x.status); }
 
-// ── Theme ──
-function applyTheme(t){ document.body.classList.toggle("light", t === "light"); }
-applyTheme(localStorage.getItem("theme") || "dark");
-$("#theme-toggle").onclick = () => {
-  const t = document.body.classList.contains("light") ? "dark" : "light";
-  applyTheme(t); localStorage.setItem("theme", t);
+// ── i18n + State ──
+let lang = localStorage.getItem("lang") || "id";
+let compactMode = localStorage.getItem("compactMode") === "true";
+let notificationsEnabled = localStorage.getItem("notificationsEnabled") !== "false";
+let autoRefreshInterval = parseInt(localStorage.getItem("refreshInterval") || "15000", 10);
+let searchDebounceTimer = null;
+let lastOnlineState = new Map(); // track ISP online state for alerts
+
+const I18N = {
+  id: {
+    searchPlaceholder: "🔍 Cari ISP…",
+    all: "Semua",
+    refresh: "↻ Refresh",
+    exportCsv: "📥 CSV",
+    exportJson: "📥 JSON",
+    adminPanel: "⚙️ Admin",
+    intervalHint: "Cek realtime tiap 10-30 dtk",
+    tabs: { all: "Semua", local: "🇮🇩 Lokal", global: "🌐 Global" },
+    verifyAll: "✓ Verifikasi Semua",
+    refreshBtn: "↻ Refresh",
+    loading: "⏳ Memuat data…",
+    errorLoad: "❌ Gagal memuat. Coba lagi 3 detik…",
+    livePing: "Tes latensi browser ke semua server target secara live",
+    startLivePing: "🏓 Mulai Live Ping",
+    pinging: "🏓 Ping…",
+    livePingDone: "✅ Selesai",
+    offline: "TIDAK TERHUBUNG",
+    online: "LIVE",
+    downloadChart: "📷 Download",
+    compare: "📊 Bandingkan",
+    embedBadge: "🪪",
+    verify: "✓",
+    check: "Cek",
+    graph: "Grafik",
+    download: "📷 Download",
+    compareBtn: "📊 Bandingkan",
+    statusOk: "ONLINE",
+    statusOff: "OFFLINE",
+    uptime: "Uptime",
+    latency: "Latensi",
+    ping: "Ping",
+    http: "HTTP",
+    status: "Status",
+    onlineCount: "Online",
+    offlineCount: "Offline",
+    avgLatency: "Latensi rata²",
+    allSystems: "◉ ALL SYSTEMS OPERATIONAL",
+    degraded: "◉ DEGRADED",
+    globalOutage: "◉ GLOBAL OUTAGE",
+    shareTitle: "ISP Monitor — Pantau Kesehatan ISP secara Real-time",
+    copyUrl: "🔗 Salin URL",
+    shareTikTok: "🎵 TikTok",
+    shareLinkedin: "In LinkedIn",
+    shareCopy: "🔗 Salin URL",
+    copied: "URL disalin ke clipboard!",
+    settings: "⚙️ Pengaturan",
+    theme: "Tema",
+    dark: "Gelap",
+    light: "Terang",
+    compactView: "Tampilan Kompak",
+    language: "Bahasa",
+    autoRefresh: "Auto Refresh",
+    refreshInterval: "Interval Refresh (detik)",
+    notifications: "Notifikasi Real-time",
+    save: "Simpan",
+    close: "Tutup",
+    emptyState: "Tidak ada ISP yang cocok",
+    clearSearch: "Bersihkan pencarian",
+    compact: "Kompak",
+    normal: "Normal",
+    indonesia: "Indonesia",
+    english: "English",
+    livePingTitle: "Live Ping Test ⚡ — Cek Koneksi Lo",
+    livePingDesc: "Tes latensi browser ke semua server target secara live",
+    startLivePingBtn: "🏓 Mulai Live Ping",
+    pingingText: "🏓 Ping…",
+    livePingDoneText: "✅ Selesai",
+    stats: {
+      total: "target",
+      failed: "gagal",
+      lowest: "terendah",
+      avg: "rata²",
+      highest: "tertinggi"
+    },
+    connected: "Terhubung",
+    disconnected: "Terputus",
+    reconnecting: "Reconnect…",
+    allSystemsOk: "ALL SYSTEMS OPERATIONAL",
+    degradedText: "DEGRADED",
+    globalOutageText: "GLOBAL OUTAGE",
+  },
+  en: {
+    searchPlaceholder: "🔍 Search ISP…",
+    all: "All",
+    refresh: "↻ Refresh",
+    exportCsv: "📥 CSV",
+    exportJson: "📥 JSON",
+    adminPanel: "⚙️ Admin",
+    intervalHint: "Realtime check every 10-30s",
+    tabs: { all: "All", local: "🇮🇩 Local", global: "🌐 Global" },
+    verifyAll: "✓ Verify All",
+    refreshBtn: "↻ Refresh",
+    loading: "⏳ Loading data…",
+    errorLoad: "❌ Failed to load. Retry in 3s…",
+    livePing: "Test browser latency to all target servers live",
+    startLivePing: "🏓 Start Live Ping",
+    pinging: "🏓 Pinging…",
+    livePingDone: "✅ Done",
+    offline: "OFFLINE",
+    online: "LIVE",
+    downloadChart: "📷 Download",
+    compare: "📊 Compare",
+    embedBadge: "🪪",
+    verify: "✓",
+    check: "Check",
+    graph: "Graph",
+    download: "📷 Download",
+    compareBtn: "📊 Compare",
+    statusOk: "ONLINE",
+    statusOff: "OFFLINE",
+    uptime: "Uptime",
+    latency: "Latency",
+    ping: "Ping",
+    http: "HTTP",
+    status: "Status",
+    onlineCount: "Online",
+    offlineCount: "Offline",
+    avgLatency: "Avg Latency",
+    allSystems: "◉ ALL SYSTEMS OPERATIONAL",
+    degraded: "◉ DEGRADED",
+    globalOutage: "◉ GLOBAL OUTAGE",
+    shareTitle: "ISP Monitor — Real-time ISP Health Monitoring",
+    copyUrl: "🔗 Copy URL",
+    shareTikTok: "🎵 TikTok",
+    shareLinkedin: "In LinkedIn",
+    shareCopy: "🔗 Copy URL",
+    copied: "URL copied to clipboard!",
+    settings: "⚙️ Settings",
+    theme: "Theme",
+    dark: "Dark",
+    light: "Light",
+    compactView: "Compact View",
+    language: "Language",
+    autoRefresh: "Auto Refresh",
+    refreshInterval: "Refresh Interval (sec)",
+    notifications: "Real-time Notifications",
+    save: "Save",
+    close: "Close",
+    emptyState: "No ISP matches",
+    clearSearch: "Clear search",
+    compact: "Compact",
+    normal: "Normal",
+    indonesia: "Indonesia",
+    english: "English",
+    livePingTitle: "Live Ping Test ⚡ — Check Your Connection",
+    livePingDesc: "Test browser latency to all target servers live",
+    startLivePingBtn: "🏓 Start Live Ping",
+    pingingText: "🏓 Pinging…",
+    livePingDoneText: "✅ Done",
+    stats: {
+      total: "targets",
+      failed: "failed",
+      lowest: "lowest",
+      avg: "avg",
+      highest: "highest"
+    },
+    connected: "Connected",
+    disconnected: "Disconnected",
+    reconnecting: "Reconnecting…",
+    allSystemsOk: "ALL SYSTEMS OPERATIONAL",
+    degradedText: "DEGRADED",
+    globalOutageText: "GLOBAL OUTAGE",
+  }
 };
+
+function t(key) {
+  const keys = key.split(".");
+  let obj = I18N[lang];
+  for (const k of keys) obj = obj?.[k];
+  return obj || key;
+}
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem("lang", l);
+  document.documentElement.lang = l;
+  applyI18n();
+}
+
+function applyI18n() {
+  const el = $("#search-input");
+  if (el) el.setAttribute("placeholder", t("searchPlaceholder"));
+  const btnRefresh = $("#btn-refresh");
+  if (btnRefresh) btnRefresh.textContent = t("refreshBtn");
+  const btnCsv = $("#btn-export-csv");
+  if (btnCsv) btnCsv.textContent = t("exportCsv");
+  const btnJson = $("#btn-export-json");
+  if (btnJson) btnJson.textContent = t("exportJson");
+  const adminLink = $("a[href='/admin']");
+  if (adminLink) adminLink.setAttribute("title", t("adminPanel"));
+  const hint = $("#interval-hint");
+  if (hint) hint.textContent = t("intervalHint");
+  const tabAll = $$(".tab[data-scope='all']")[0];
+  if (tabAll) tabAll.textContent = t("tabs.all");
+  const tabLocal = $$(".tab[data-scope='local']")[0];
+  if (tabLocal) tabLocal.textContent = t("tabs.local");
+  const tabGlobal = $$(".tab[data-scope='global']")[0];
+  if (tabGlobal) tabGlobal.textContent = t("tabs.global");
+  const btnVerify = $("#btn-verify-all");
+  if (btnVerify) btnVerify.textContent = t("verifyAll");
+  const btnSpeed = $("#btn-speedtest");
+  if (btnSpeed) btnSpeed.textContent = t("startLivePingBtn");
+  const speedStatus = $("#speed-status");
+  if (speedStatus) speedStatus.textContent = t("livePing");
+  const liveTxt = $("#live-txt");
+  if (liveTxt) liveTxt.textContent = t("online");
+  // Update modal buttons
+  const modalClose = $("#modal-close");
+  if (modalClose) modalClose.textContent = "✕";
+  const compareClose = $("#compare-close");
+  if (compareClose) compareClose.textContent = "✕";
+  // Update buttons
+  $$(".mini").forEach((b, i) => {
+    if (b.textContent.includes("Grafik") || b.textContent.includes("Graph")) b.textContent = "📊";
+    if (b.textContent.includes("Cek") || b.textContent.includes("Check")) b.textContent = t("check");
+    if (b.textContent.includes("Grafik") || b.textContent.includes("Graph")) b.textContent = t("graph");
+    if (b.textContent.includes("🪪") || b.textContent.includes("Embed")) b.textContent = "🪪";
+    if (b.textContent.includes("✓")) b.textContent = t("verify");
+    if (b.textContent.includes("Cek") || b.textContent.includes("Check")) b.textContent = t("check");
+  });
+  // Re-render table to update headers
+  renderTable();
+  // Update Live Ping section
+  const lpTitle = $("#liveping-section h2");
+  if (lpTitle) lpTitle.textContent = t("livePingTitle");
+  const lpStatus = $("#lp-status");
+  if (lpStatus) lpStatus.textContent = t("livePing");
+  const btnLiveping = $("#btn-liveping");
+  if (btnLiveping) btnLiveping.textContent = t("startLivePingBtn");
+}
 
 // ── Load ──
 async function loadDashboard() {
-  const [dash, regions, stats] = await Promise.all([
-    fetch("/dashboard").then((r) => r.json()),
-    fetch("/regions").then((r) => r.json()),
-    fetch("/stats").then((r) => r.json()),
-  ]);
-  dash.forEach((d) => {
-    const prev = store[d.id];
-    store[d.id] = {
-      ...d, latest: prev?.latest || {},
-      spark: prev?.spark || [],
-    };
-    if (prev?.latest) store[d.id].latest = prev.latest;
-  });
-  $("#st-online-total") && ($("#st-online-total").textContent = stats.total_isps);
-  fillRegionFilter(regions);
-  fillCatFilter();
-  renderSummary(stats);
-  renderHero();
-  renderRegionGroups();
-  renderTable();
+  try {
+    const grid = $("#grid");
+    if (grid && !grid.children.length) {
+      grid.innerHTML = Array(8).fill(0).map(() => `
+        <div class="ispcard skeleton-card">
+          <div class="skeleton-title"></div>
+          <div class="skeleton-text short"></div>
+          <div class="skeleton-metric"></div>
+          <div class="skeleton-metric"></div>
+          <div class="skeleton-metric"></div>
+          <div class="skeleton-metric"></div>
+          <div class="skeleton-spark"></div>
+          <div class="skeleton-text medium"></div>
+          <div class="skeleton-actions"></div>
+        </div>
+      `).join("");
+    }
+    const [dash, regions, stats] = await Promise.all([
+      fetch("/dashboard").then((r) => r.json()),
+      fetch("/regions").then((r) => r.json()),
+      fetch("/stats").then((r) => r.json()),
+    ]);
+    dash.forEach((d) => {
+      const prev = store[d.id];
+      const latest = prev?.latest || {};
+      if (!latest.combined && d.recent_status?.length) {
+        const r = d.recent_status[0];
+        latest.combined = { ok: !!r.status, latency: r.latency_ms };
+      }
+      store[d.id] = {
+        ...d, latest,
+        spark: prev?.spark || [],
+      };
+    });
+    $("#st-online-total") && ($("#st-online-total").textContent = stats.total_isps);
+    fillRegionFilter(regions);
+    fillCatFilter();
+    renderSummary(stats);
+    renderHero();
+    renderRegionGroups();
+    renderTable();
+  } catch (e) {
+    console.error("dashboard gagal:", e);
+    const grid = $("#grid");
+    if (grid && grid.querySelector(".loading")) {
+      grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal memuat. Coba lagi 3 detik…</div>';
+    }
+    toast("Gagal muat data — coba lagi", "err");
+    setTimeout(loadDashboard, 3000);
+  }
 }
 
 function renderHero() {
@@ -105,7 +392,7 @@ function renderSummary(stats) {
     { v: avg ? avg + "ms" : "–", l: "Avg Latensi", accent: "var(--acc2)", ic: "⚡" },
     { v: best ? `${best.name} ${best.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terbaik", accent: "var(--ok)", ic: "🏆" },
     { v: worst ? `${worst.name} ${worst.cache.uptime_percent.toFixed(0)}%` : "–", l: "Terburuk", accent: "var(--warn)", ic: "⚠️" },
-    { v: stats.checks_today || 0, l: "Cek Hari Ini", accent: "var(--acc)", ic: "📊" },
+    { v: (stats && stats.checks_today) || 0, l: "Cek Hari Ini", accent: "var(--acc)", ic: "📊" },
   ];
   $("#summary").innerHTML = cards.map((c) =>
     `<div class="scard" style="--accent:${c.accent}"><span class="ic">${c.ic}</span><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`
@@ -191,6 +478,7 @@ function cardEl(s) {
     <div class="ic-actions">
       <button class="mini" onclick="manual(${s.id})">Cek</button>
       <button class="mini" onclick="openDetail(${s.id})">Grafik</button>
+      <button class="mini" onclick="embedBadge(${s.id})">🪪</button>
       <button class="mini" onclick="verifyOne(${s.id})">✓</button>
       <span id="vrf-${s.id}" class="vbadge">${s.verify?.match === true ? "✅" : s.verify?.match === false ? "⚠️" : ""}</span>
     </div>`;
@@ -262,13 +550,28 @@ function drawSpark(id) {
 
 // ── Realtime ──
 socket.on("dashboard", () => loadDashboard());
-socket.on("connect", () => { $("#live-dot").parentElement.classList.remove("off"); $("#live-txt").textContent = "LIVE"; });
-socket.on("disconnect", () => { const l = $("#live-dot").parentElement; l.classList.add("off"); $("#live-txt").textContent = "OFFLINE"; });
+socket.on("connect", () => {
+  const p = $("#live-dot");
+  p.parentElement.classList.remove("off");
+  p.classList.add("pulse");
+  $("#live-txt").textContent = "LIVE";
+  toast("Terhubung", "ok");
+});
+socket.on("disconnect", () => {
+  const l = $("#live-dot").parentElement;
+  l.classList.add("off");
+  $("#live-dot").classList.remove("pulse");
+  $("#live-txt").textContent = "TIDAK TERHUBUNG";
+  toast("Koneksi terputus — reconnect…", "warn");
+});
 
 socket.on("check", (p) => {
   const s = store[p.ispId]; if (!s) return;
-  if (p.ping && p.http) { s.latest.ping = p.ping; s.latest.http = p.http; s.latest.combined = p.combined; }
-  else if (p.combined) s.latest.combined = p.combined;
+  const wasOnline = s.latest?.combined?.ok ?? false;
+  s.latest = s.latest || {};
+  s.latest.combined = p.combined || s.latest.combined;
+  if (p.ping) s.latest.ping = p.ping;
+  if (p.http) s.latest.http = p.http;
   if (p.status) s.official = p.status;
   s.regions = s.regions || {};
   s.regions[p.probe] = { status: !!(p.combined?.ok ?? p.ping?.ok), latency: p.combined?.latency ?? p.ping?.latency };
@@ -276,6 +579,12 @@ socket.on("check", (p) => {
     s.spark = s.spark || [];
     s.spark.push(p.combined.latency);
     if (s.spark.length > 30) s.spark.shift();
+  }
+  const nowOnline = p.combined?.ok ?? false;
+  if (wasOnline !== nowOnline) {
+    const status = nowOnline ? "up" : "down";
+    const latency = p.combined?.latency;
+    alertIsp(s.name, status, latency);
   }
   updateRow(p.ispId);
   drawSpark(p.ispId);
@@ -308,23 +617,16 @@ function initGlobalChart() {
 }
 
 // ── Detail ──
-async function openDetail(id) {
-  openId = id; const s = store[id];
-  $("#modal-title").textContent = `Analitik — ${s.name}`;
-  $("#modal").classList.remove("hidden");
-  const hist = await fetch(`/history/${id}?limit=300`).then((r) => r.json());
+function buildChart(id, canvasId, hist, labelA = "Ping", labelB = "HTTP", labelC = "Combined") {
   const ping = hist.filter((h) => h.check_type === "ping").map((h) => ({ x: h.recorded_at, y: h.latency_ms }));
   const http = hist.filter((h) => h.check_type === "http").map((h) => ({ x: h.recorded_at, y: h.latency_ms }));
   const cmb = hist.filter((h) => h.check_type === "combined").map((h) => ({ x: h.recorded_at, y: h.latency_ms }));
-  const last = hist[0];
-  $("#modal-spark").textContent = last ? `Terakhir: ${last.recorded_at} · ${last.status ? "UP" : "DOWN"}` : "Belum ada data";
-  if (detailChart) detailChart.destroy();
-  detailChart = new Chart($("#detailChart"), {
+  return new Chart($(canvasId), {
     type: "line",
     data: { datasets: [
-      { label: "Ping", data: ping, borderColor: "#3fb950", pointRadius: 0, tension: 0.3 },
-      { label: "HTTP", data: http, borderColor: "#58a6ff", pointRadius: 0, tension: 0.3 },
-      { label: "Combined", data: cmb, borderColor: "#d29922", pointRadius: 0, tension: 0.3 },
+      { label: labelA, data: ping, borderColor: "#3fb950", pointRadius: 0, tension: 0.3 },
+      { label: labelB, data: http, borderColor: "#58a6ff", pointRadius: 0, tension: 0.3 },
+      { label: labelC, data: cmb, borderColor: "#d29922", pointRadius: 0, tension: 0.3 },
     ]},
     options: { animation: false, responsive: true,
       scales: { x: { ticks: { color: "#8b949e", maxTicksLimit: 6 }, grid: { color: "#21262d" } },
@@ -332,6 +634,45 @@ async function openDetail(id) {
       plugins: { legend: { labels: { color: "#8b949e" } } } },
   });
 }
+function renderTimeline(hist) {
+  const el = $("#modal-timeline");
+  if (!hist.length) return el.innerHTML = "";
+  const dayMs = 86400000;
+  const now = Date.now();
+  const oldest = now - (hist[0]?.recorded_at ? Math.min(now - new Date(hist[hist.length-1].recorded_at).getTime(), dayMs) : dayMs);
+  const buckets = 48;
+  const gap = (now - oldest) / buckets;
+  const bars = Array(buckets).fill(0);
+  const counts = Array(buckets).fill(0);
+  for (const h of hist) {
+    const idx = Math.min(buckets - 1, Math.floor((new Date(h.recorded_at).getTime() - oldest) / gap));
+    if (h.check_type === "combined") { bars[idx] += h.status ? 1 : 0; counts[idx]++; }
+  }
+  el.innerHTML = counts.map((c, i) => {
+    if (!c) return '<div class="bar" style="background:var(--line)"></div>';
+    const pct = bars[i] / c;
+    const cls = pct === 1 ? "up" : pct > 0.5 ? "mixed" : "down";
+    const hgt = Math.max(4, Math.round(pct * 28));
+    return `<div class="bar ${cls}" style="height:${hgt}px" title="${Math.round(pct*100)}%"></div>`;
+  }).join("");
+}
+async function openDetail(id, range = "24h") {
+  openId = id; const s = store[id];
+  $("#modal-title").textContent = `Analitik — ${s.name}`;
+  $("#modal").classList.remove("hidden");
+  $$(".range-btn").forEach((b) => b.classList.toggle("active", b.dataset.range === range));
+  const hist = await fetch(`/history/${id}?range=${range}`).then((r) => r.json());
+  const last = hist[0];
+  $("#modal-spark").textContent = last ? `Terakhir: ${last.recorded_at} · ${last.status ? "UP" : "DOWN"}` : "Belum ada data";
+  if (detailChart) detailChart.destroy();
+  detailChart = buildChart(id, "#detailChart", hist);
+  renderTimeline(hist);
+  window._detailHist = hist;
+}
+document.querySelectorAll(".range-btn").forEach((b) => {
+  b.onclick = () => { if (openId) openDetail(openId, b.dataset.range); };
+});
+
 function pushDetail(p) {
   if (!detailChart) return;
   const t = new Date().toISOString();
@@ -343,7 +684,6 @@ function pushDetail(p) {
   detailChart.update("none");
   $("#modal-live").textContent = `Live @ ${new Date().toLocaleTimeString()} · ping ${fmt(p.ping?.latency)} · http ${fmt(p.http?.latency)}`;
 }
-
 window.openDetail = openDetail;
 window.manual = (id) => socket.emit("pingNow", { ispId: id });
 $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId = null; };
@@ -358,25 +698,51 @@ document.querySelectorAll(".tab").forEach((t) => {
   };
 });
 $("#btn-verify-all").onclick = () => window.verifyAll();
-$("#btn-refresh").onclick = loadDashboard;
-$("#search-input").oninput = (e) => { searchQuery = e.target.value; renderTable(); };
+$("#btn-refresh").onclick = () => {
+  const btn = $("#btn-refresh");
+  btn.textContent = "↻ Memuat…";
+  btn.disabled = true;
+  loadDashboard().finally(() => { btn.textContent = "↻ Refresh"; btn.disabled = false; });
+};
+$("#search-input").oninput = (e) => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchQuery = e.target.value;
+    $("#search-clear").hidden = !searchQuery;
+    renderTable();
+  }, 150);
+};
+$("#search-clear").onclick = () => {
+  $("#search-input").value = "";
+  searchQuery = "";
+  $("#search-clear").hidden = true;
+  renderTable();
+  $("#search-input").focus();
+};
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select, textarea")) return;
+  switch (e.key.toLowerCase()) {
+    case "r": loadDashboard(); break;
+    case "f": $("#search-input").focus(); e.preventDefault(); break;
+    case "escape":
+      if (!$("#modal").classList.contains("hidden")) $("#modal-close").click();
+      if (!$("#compare-modal").classList.contains("hidden")) $("#compare-close").click();
+      break;
+    case "1": scope = "all"; document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.scope === "all")); renderTable(); break;
+    case "2": scope = "local"; document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.scope === "local")); renderTable(); break;
+    case "3": scope = "global"; document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.scope === "global")); renderTable(); break;
+    case "c": compactMode = !compactMode; localStorage.setItem("compactMode", compactMode); applyCompactMode(); break;
+  }
+});
+
+function applyCompactMode() {
+  document.body.classList.toggle("compact", compactMode);
+  localStorage.setItem("compactMode", compactMode);
+}
 $("#btn-export-csv").onclick = () => { window.open("/export/csv", "_blank"); };
 $("#btn-export-json").onclick = () => { window.open("/export/json", "_blank"); };
-
-// ── SSE fallback ──
-(() => {
-  if (!window.EventSource) return;
-  const es = new EventSource("/events");
-  es.onmessage = (e) => {
-    try {
-      const p = JSON.parse(e.data);
-      if (p.type === "connected") return;
-      const ev = new CustomEvent("sse-check", { detail: p });
-      window.dispatchEvent(ev);
-    } catch {}
-  };
-  es.onerror = () => {};
-})();
 
 // ── Share functions ──
 const SHARE_URL = window.location.origin;
@@ -391,9 +757,8 @@ function onlineCount() {
     })()
   }`;
 }
-window.shareTwitter = () => {
-  const text = encodeURIComponent(`${onlineCount()} — ${SHARE_TITLE}\n${SHARE_URL}`);
-  window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "width=600,height=400");
+window.shareTikTok = () => {
+  window.open("https://vt.tiktok.com/ZSXkMfy2m/", "_blank");
 };
 window.shareLinkedin = () => {
   const text = encodeURIComponent(`${onlineCount()} — ${SHARE_TITLE}`);
@@ -403,6 +768,118 @@ window.shareCopyUrl = () => {
   navigator.clipboard.writeText(SHARE_URL).then(() => alert("URL disalin ke clipboard!")).catch(() => prompt("Salin URL ini:", SHARE_URL));
 };
 
+// ── Download chart ──
+window.downloadChart = () => {
+  const c = $("#detailChart");
+  if (!c) return;
+  const link = document.createElement("a");
+  link.download = `isp-${openId}-${new Date().toISOString().slice(0,10)}.png`;
+  link.href = c.toDataURL("image/png");
+  link.click();
+};
+
+// ── Compare ISP ──
+function fillCompSelects() {
+  const opts = Object.values(store).sort((a, b) => a.name.localeCompare(b.name)).map((s) =>
+    `<option value="${s.id}">${s.name}</option>`
+  ).join("");
+  $("#comp-a").innerHTML = opts;
+  $("#comp-b").innerHTML = opts;
+}
+async function loadCompChart(id, canvasId, nameId) {
+  const hist = await fetch(`/history/${id}?range=24h`).then((r) => r.json());
+  $(nameId).textContent = Object.values(store).find((s) => s.id === id)?.name || "";
+  const ch = buildChart(id, canvasId, hist);
+  return ch;
+}
+window.compareIsp = async () => {
+  fillCompSelects();
+  $("#compare-modal").classList.remove("hidden");
+  const a = Number($("#comp-a").value) || Object.values(store)[0]?.id;
+  const b = Number($("#comp-b").value) || Object.values(store)[1]?.id;
+  if (compChartA) { compChartA.destroy(); compChartB.destroy(); }
+  compChartA = await loadCompChart(a, "#compChartA", "#comp-a-name");
+  compChartB = await loadCompChart(b, "#compChartB", "#comp-b-name");
+};
+$("#comp-a").onchange = window.compareIsp;
+$("#comp-b").onchange = window.compareIsp;
+$("#compare-close").onclick = () => { $("#compare-modal").classList.add("hidden"); };
+
+// ── Live Ping Test ──
+$("#btn-liveping").onclick = async () => {
+  const btn = $("#btn-liveping"); const st = $("#lp-status"); const el = $("#lp-results"); const sum = $("#lp-summary");
+  btn.disabled = true; st.textContent = "🏓 Ping…";
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--mut)">⏳ Mengukur latensi ke target…</div>';
+  sum.innerHTML = "";
+
+  const targets = Object.values(store).filter((s) => s.real_ip || s.isp_ip || s.http_url).slice(0, 30);
+  const results = []; let done = 0;
+
+  for (const s of targets) {
+    const url = s.http_url || `http://${s.real_ip || s.isp_ip}`;
+    const t0 = performance.now();
+    let ok = false, ms = null;
+    try {
+      await fetch(url, { mode: "no-cors", signal: AbortSignal.timeout(4000) });
+      ok = true; ms = Math.round(performance.now() - t0);
+    } catch { ms = null; }
+    results.push({ name: s.name, ms, ok });
+    done++;
+    st.textContent = `🏓 Ping… ${done}/${targets.length} (${Math.round(done/targets.length*100)}%)`;
+
+    const sorted = [...results].sort((a, b) => (a.ms || 9999) - (b.ms || 9999));
+    el.innerHTML = sorted.map((r) => {
+      const cls = r.ok ? (r.ms < 100 ? "lp-ok" : r.ms < 300 ? "lp-slow" : "lp-bad") : "lp-fail";
+      const barW = r.ok ? Math.min(100, Math.round(r.ms / 5)) : 0;
+      const barC = r.ok ? (r.ms < 100 ? "var(--ok)" : r.ms < 300 ? "var(--warn)" : "var(--fail)") : "var(--line)";
+      return `<div class="lp-item ${cls}">
+        <span class="lp-name">${r.name}</span>
+        <span class="lp-bar"><i style="width:${barW}%;background:${barC}"></i></span>
+        <span class="lp-ms">${r.ok ? r.ms + "ms" : "❌"}</span>
+      </div>`;
+    }).join("");
+  }
+
+  const okResults = results.filter(r => r.ok);
+  const min = okResults.length ? Math.min(...okResults.map(r => r.ms)) : 0;
+  const max = okResults.length ? Math.max(...okResults.map(r => r.ms)) : 0;
+  const avg = okResults.length ? Math.round(okResults.reduce((a, r) => a + r.ms, 0) / okResults.length) : 0;
+  const loss = results.length - okResults.length;
+
+  sum.innerHTML = `<div class="lp-stats">
+    <div class="lp-stat"><b>${results.length}</b> target</div>
+    <div class="lp-stat"><b>${loss}</b> gagal</div>
+    <div class="lp-stat ok"><b>${min}ms</b> terendah</div>
+    <div class="lp-stat warn"><b>${avg}ms</b> rata²</div>
+    <div class="lp-stat bad"><b>${max}ms</b> tertinggi</div>
+  </div>`;
+
+  st.textContent = `✅ Selesai — ${okResults.length}/${results.length} target reachable, rata² ${avg}ms, packet loss ${Math.round(loss/results.length*100)}%`;
+  btn.textContent = "🏓 Ulangi Live Ping";
+  btn.disabled = false;
+};
+
+// ── Affiliate links loader ──
+async function loadAffiliates() {
+  try {
+    const res = await fetch("/api/affiliates");
+    const data = await res.json();
+    const container = $("#affiliate-links");
+    if (!container || !data?.links?.length) return;
+    container.innerHTML = data.links.map(l =>
+      `<a href="${l.url}" target="_blank" rel="noopener" class="aff-link" title="${l.desc || ''}">${l.label}</a>`
+    ).join("");
+  } catch (e) { console.warn("Affiliate load failed:", e); }
+}
+
+// ── Embed badge generator ──
+window.embedBadge = (id) => {
+  const url = `${window.location.origin}/badge/${id}`;
+  const code = `<a href="${window.location.origin}" target="_blank"><img src="${url}" alt="ISP Status" /></a>`;
+  navigator.clipboard.writeText(code).then(() => alert("Kode embed badge disalin!"));
+};
+
+loadAffiliates();
 initGlobalChart();
 loadDashboard();
 setInterval(loadDashboard, 15000);

@@ -73,15 +73,17 @@ async function evaluateAlerts() {
 const last = new Map();
 
 function seedLast(isp) {
-  const rows = db.db
-    .prepare(
-      `SELECT check_type, status, latency_ms FROM isp_status_history
-       WHERE isp_id = ? AND recorded_at = (SELECT MAX(recorded_at) FROM isp_status_history h2
-         WHERE h2.isp_id = isp_status_history.isp_id AND h2.check_type = isp_status_history.check_type)`
-    )
-    .all(isp.id);
+  // ponytail: check_types diamankan dari schema (lihat partial index di db.js);
+  // kalau ada tipe baru, ambil dari SELECT DISTINCT check_type sekali di startup.
+  const types = ["ping", "http", "status", "combined"];
+  const q = db.db.prepare(
+    "SELECT check_type, status, latency_ms FROM isp_status_history WHERE isp_id = ? AND check_type = ? ORDER BY recorded_at DESC LIMIT 1"
+  );
   const o = {};
-  for (const r of rows) o[r.check_type] = { ok: !!r.status, latency: r.latency_ms };
+  for (const ct of types) {
+    const r = q.get(isp.id, ct);
+    if (r) o[r.check_type] = { ok: !!r.status, latency: r.latency_ms };
+  }
   last.set(isp.id, o);
 }
 
@@ -199,4 +201,4 @@ async function checkSingleNow(isp, onCheck, probe = PROBE) {
   return fullPayload(isp);
 }
 
-module.exports = { startWorker, checkSingleNow, evaluateAlerts };
+module.exports = { startWorker, checkSingleNow, evaluateAlerts, sendTelegram };

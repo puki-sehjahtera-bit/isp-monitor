@@ -5,6 +5,8 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const rateLimit = require("express-rate-limit");
+const swaggerUi = require("swagger-ui-express");
+const swaggerJSDoc = require("swagger-jsdoc");
 const db = require("./db");
 const { seed } = require("./seed");
 const worker = require("./worker");
@@ -12,7 +14,7 @@ const twitter = require("./twitter");
 const backup = require("./backup");
 const { verifyIsp } = require("./verify");
 
-const API_HOST = process.env.API_HOST || "0.0.0.0";
+const API_HOST = process.env.API_HOST || "::";
 const PORT = parseInt(process.env.PORT || process.env.API_PORT || "8000", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 
@@ -25,10 +27,37 @@ function requireAdmin(req, res, next) {
 }
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json());
 
+// ── Visitor log ── (paling atas biar semua request tercatat)
+const fs = require("fs");
+const VISITOR_LOG = path.join(__dirname, "..", "data", "visitors.json");
+const visitors = [];
+try { const v = JSON.parse(fs.readFileSync(VISITOR_LOG, "utf-8")); Array.isArray(v) && v.forEach(x => visitors.push(x)); } catch {}
+const MAX_VISITORS = 500;
+app.use((req, res, next) => {
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+  const entry = { ip: ip.split(",")[0].trim(), ua: (req.headers["user-agent"] || "").slice(0, 120), path: req.path, t: new Date().toISOString() };
+  visitors.push(entry);
+  if (visitors.length > MAX_VISITORS) visitors.splice(0, visitors.length - MAX_VISITORS);
+  try { fs.writeFileSync(VISITOR_LOG, JSON.stringify(visitors.slice(-200)), "utf-8"); } catch {}
+  next();
+});
+
+// ── API Key Auth (untuk Public API v1) ──
+function requireApiKey(req, res, next) {
+  const key = req.headers["x-api-key"] || req.query.api_key;
+  if (!key) return res.status(401).json({ error: "API key diperlukan (header X-API-Key atau query api_key)" });
+  const apiKey = db.getApiKey(key);
+  if (!apiKey) return res.status(401).json({ error: "API key tidak valid atau tidak aktif" });
+  req.apiKey = apiKey;
+  db.updateApiKeyLastUsed(key);
+  next();
+}
+
 const apiLimiter = rateLimit({
-  windowMs: 60000, max: 120, standardHeaders: true, legacyHeaders: false,
+  windowMs: 60000, max: 300, standardHeaders: true, legacyHeaders: false,
   message: { error: "Terlalu banyak request — coba lagi nanti" },
 });
 const writeLimiter = rateLimit({
@@ -36,20 +65,51 @@ const writeLimiter = rateLimit({
   message: { error: "Terlalu banyak request — coba lagi nanti" },
 });
 
+// ── API Key Auth Middleware ──
+function apiKeyLimiter(req, res, next) {
+  if (!req.apiKey) return next();
+  const key = `apikey:${req.apiKey.id}`;
+  const limiter = rateLimit({
+    windowMs: 60000, max: req.apiKey.rate_limit || 60, standardHeaders: true, legacyHeaders: false,
+    keyGenerator: () => key,
+    validate: false,
+    message: { error: "Rate limit terlampaui untuk API key ini" },
+  });
+  limiter(req, res, next);
+}
+
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PUBLIC = path.join(__dirname, "..", "public");
 app.use(express.static(PUBLIC));
 
+// Service worker untuk routing client-side (offline mode)
+app.get("/sw.js", (_req, res) => {
+  res.set("Content-Type", "application/javascript");
+  res.sendFile(path.join(PUBLIC, "sw.js"));
+});
+app.get("/manifest.json", (_req, res) => {
+  res.set("Content-Type", "application/json");
+  res.sendFile(path.join(PUBLIC, "manifest.json"));
+});
+app.get("/icon.svg", (_req, res) => {
+  res.set("Content-Type", "image/svg+xml");
+  res.sendFile(path.join(PUBLIC, "icon.svg"));
+});
+
 app.get("/", (_req, res) => res.sendFile(path.join(PUBLIC, "index.html")));
 app.get("/ui", (_req, res) => res.sendFile(path.join(PUBLIC, "index.html")));
-app.get("/admin", (_req, res) => res.sendFile(path.join(PUBLIC, "admin.html")));
+app.get("/admin", requireAdmin, (_req, res) => res.sendFile(path.join(PUBLIC, "admin.html")));
 
 app.get("/healthz", (_req, res) => res.json({ status: "ok", service: "isp-monitor-api" }));
 
 // ── Rate limit ──
 app.use(["/isps", "/dashboard", "/regions", "/stats", "/history", "/status", "/probes", "/export", "/health", "/report", "/verify"], apiLimiter);
+
+app.get("/visitors", requireAdmin, (req, res) => {
+  res.json(visitors.slice().reverse().slice(0, 100));
+});
 
 // ── ISP CRUD ──
 app.get("/isps", (req, res) => {
@@ -89,9 +149,13 @@ app.get("/regions", (_req, res) => res.json(db.getProbes()));
 app.get("/stats", (_req, res) => res.json(db.getStats()));
 
 app.get("/history/:id", (req, res) => {
-  const { check_type, since, limit } = req.query;
+  const { check_type, since, limit, range } = req.query;
+  let s = since;
+  if (range === "7d") s = new Date(Date.now() - 7 * 86400000).toISOString();
+  else if (range === "30d") s = new Date(Date.now() - 30 * 86400000).toISOString();
+  else if (range === "24h" || !s) s = new Date(Date.now() - 86400000).toISOString();
   res.json(db.getHistory(Number(req.params.id), {
-    check_type, since, limit: limit ? Number(limit) : 100,
+    check_type, since: s, limit: limit ? Number(limit) : 9999,
   }));
 });
 
@@ -162,6 +226,30 @@ app.post("/report", async (req, res) => {
 // Metadata probe (ASN/lokasi tiap region)
 app.get("/probes", (_req, res) => res.json(db.getProbesMeta()));
 
+// ── Badge embed ──
+app.get("/badge/:id", (req, res) => {
+  const isp = db.getIspById(Number(req.params.id));
+  if (!isp) return res.status(404).send("ISP not found");
+  const dash = db.getDashboard().find((d) => d.id === Number(req.params.id));
+  const st = dash?.recent_status?.[0];
+  const ok = st?.status;
+  const uptime = dash?.cache?.uptime_percent ?? 0;
+  const lat = dash?.cache ? Math.round(dash.cache.avg_latency || 0) : "";
+  const color = ok ? "3fb950" : uptime > 0 ? "d29922" : "f85149";
+  const label = ok ? "UP" : uptime > 0 ? "DEGRADED" : "DOWN";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="100">
+    <rect width="240" height="100" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="16" y="28" font-family="sans-serif" font-size="11" fill="#8b949e">${isp.name}</text>
+    <rect x="16" y="40" width="208" height="12" rx="6" fill="#21262d"/>
+    <rect x="16" y="40" width="${uptime}%" height="12" rx="6" fill="#${color}"/>
+    <text x="16" y="70" font-family="sans-serif" font-size="22" font-weight="bold" fill="#${color}">${label}</text>
+    <text x="16" y="88" font-family="sans-serif" font-size="10" fill="#8b949e">uptime ${uptime.toFixed(1)}% ${lat ? '· '+lat+'ms' : ''}</text>
+  </svg>`;
+  res.setHeader("Content-Type", "image/svg+xml");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(svg);
+});
+
 // ── Export ──
 app.get("/export/json", (_req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="isp-monitor-${new Date().toISOString().slice(0, 10)}.json"`);
@@ -206,39 +294,355 @@ app.get("/export/snapshot.csv", (_req, res) => {
   res.send(lines.join("\n"));
 });
 
+// ── API Key Management (Admin only) ──
+app.post("/api/v1/keys", requireAdmin, (req, res) => {
+  const { name, rateLimit = 60 } = req.body;
+  if (!name) return res.status(400).json({ error: "Nama key wajib diisi" });
+  const key = db.createApiKey({ name, rateLimit });
+  res.status(201).json(key);
+});
+
+app.get("/api/v1/keys", requireAdmin, (req, res) => {
+  res.json(db.listApiKeys());
+});
+
+app.delete("/api/v1/keys/:id", requireAdmin, (req, res) => {
+  db.revokeApiKey(Number(req.params.id));
+  res.status(204).end();
+});
+
+// ── Public API v1 ──
+const apiV1Limiter = rateLimit({
+  windowMs: 60000, max: 60, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => req.apiKey?.id || req.ip,
+  validate: false,
+  message: { error: "Rate limit terlampaui" },
+});
+
+app.get("/api/v1/isps", requireApiKey, apiV1Limiter, (req, res) => {
+  const isps = db.getAllIsps();
+  res.json({ data: isps, count: isps.length });
+});
+
+app.get("/api/v1/isps/:id", requireApiKey, apiV1Limiter, (req, res) => {
+  const isp = db.getIspById(Number(req.params.id));
+  if (!isp) return res.status(404).json({ error: "ISP tidak ditemukan" });
+  res.json(isp);
+});
+
+app.get("/api/v1/dashboard", requireApiKey, apiV1Limiter, (req, res) => {
+  res.json({ data: db.getDashboard(), timestamp: new Date().toISOString() });
+});
+
+app.get("/api/v1/stats", requireApiKey, apiV1Limiter, (req, res) => {
+  res.json(db.getStats());
+});
+
+app.get("/api/v1/history/:id", requireApiKey, apiV1Limiter, (req, res) => {
+  const { check_type, since, limit, range } = req.query;
+  let s = since;
+  if (range === "7d") s = new Date(Date.now() - 7 * 86400000).toISOString();
+  else if (range === "30d") s = new Date(Date.now() - 30 * 86400000).toISOString();
+  else if (range === "24h" || !s) s = new Date(Date.now() - 86400000).toISOString();
+  res.json(db.getHistory(Number(req.params.id), {
+    check_type, since: s, limit: limit ? Number(limit) : 9999,
+  }));
+});
+
+app.get("/api/v1/status/:id", requireApiKey, apiV1Limiter, (req, res) => {
+  const day = new Date().toISOString().slice(0, 10);
+  const row = db.db.prepare("SELECT * FROM isp_uptime_cache WHERE isp_id = ? AND check_date = ?")
+    .get(Number(req.params.id), day);
+  if (!row) return res.status(404).json({ error: "Status tidak ditemukan" });
+  res.json({
+    isp_id: row.isp_id, uptime_percent: row.uptime_percent,
+    total_checks: row.total_checks, successful: row.successful,
+    avg_latency_ms: null,
+  });
+});
+
 app.post("/worker/start", requireAdmin, (req, res) => {
   startBackgroundWorker();
   res.status(202).json({ status: "worker started" });
 });
 
-// ── SSE clients ──
-const sseClients = [];
-
 function broadcast(payload) {
   io.emit("check", payload);
-  const data = JSON.stringify(payload);
-  for (let i = sseClients.length - 1; i >= 0; i--) {
-    try {
-      sseClients[i].write(`data: ${data}\n\n`);
-    } catch {
-      sseClients.splice(i, 1);
-    }
-  }
 }
 
+// Minimal SSE stub buat client lama yg masih pake EventSource
 app.get("/events", (req, res) => {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
-    "Access-Control-Allow-Origin": "*",
   });
   res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
-  sseClients.push(res);
-  req.on("close", () => {
-    const idx = sseClients.indexOf(res);
-    if (idx !== -1) sseClients.splice(idx, 1);
+  req.on("close", () => {});
+});
+
+// ── Affiliate links endpoint ──
+app.get("/api/affiliates", (_req, res) => {
+  res.json({
+    links: [
+      { category: "game_booster", label: "ExitLag", url: "https://www.exitlag.com/refer/10327709", desc: "Game booster & ping reducer" },
+      { category: "game_booster", label: "GearUP Booster", url: "https://www.gearupbooster.com", desc: "Optimasi routing game" },
+      { category: "vpn", label: "NordVPN", url: "https://www.nordvpn.com", desc: "VPN cepat & aman" },
+      { category: "vpn", label: "ExpressVPN", url: "https://www.expressvpn.com", desc: "VPN premium global" }
+    ]
   });
+});
+
+// Telegram test endpoint (admin only)
+app.post("/api/telegram/test", requireAdmin, async (req, res) => {
+  const { sendTelegram } = require("./worker");
+  const { message = "✅ Test dari ISP Monitor — notif Telegram aktif!" } = req.body;
+  try {
+    await sendTelegram(message);
+    res.json({ success: true, message: "Test Telegram terkirim" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Middleware: require API key + per-key rate limit
+app.use("/api/v1", requireApiKey, apiKeyLimiter, apiV1Limiter);
+
+// GET /api/v1/isp — list all ISPs dengan status
+app.get("/api/v1/isp", (_req, res) => {
+  const isps = db.getDashboard();
+  res.json({ data: isps, count: isps.length, timestamp: new Date().toISOString() });
+});
+
+// GET /api/v1/isp/:id — detail ISP + history
+app.get("/api/v1/isp/:id", (req, res) => {
+  const isp = db.getDashboard().find(i => i.id == req.params.id);
+  if (!isp) return res.status(404).json({ error: "ISP tidak ditemukan" });
+  res.json({ data: isp });
+});
+
+// GET /api/v1/isp/:id/history — history latency
+app.get("/api/v1/isp/:id/history", (req, res) => {
+  const { range = "24h", type } = req.query;
+  let since;
+  switch (range) {
+    case "1h": since = new Date(Date.now() - 3600000).toISOString(); break;
+    case "6h": since = new Date(Date.now() - 21600000).toISOString(); break;
+    case "24h": since = new Date(Date.now() - 86400000).toISOString(); break;
+    case "7d": since = new Date(Date.now() - 604800000).toISOString(); break;
+    case "30d": since = new Date(Date.now() - 2592000000).toISOString(); break;
+    default: since = new Date(Date.now() - 86400000).toISOString();
+  }
+  const hist = db.getHistory(req.params.id, { check_type: type, since, limit: 500 });
+  res.json({ data: hist, count: hist.length, range, type: type || "all" });
+});
+
+// GET /api/v1/stats — ringkasan global
+app.get("/api/v1/stats", (_req, res) => {
+  res.json(db.getStats());
+});
+
+// GET /api/v1/regions — list probe regions
+app.get("/api/v1/regions", (_req, res) => {
+  res.json({ data: db.getProbes() });
+});
+
+// GET /api/v1/status — status singkat semua ISP
+app.get("/api/v1/status", (_req, res) => {
+  const isps = db.getDashboard();
+  res.json({ data: isps.map(i => ({
+    id: i.id, name: i.name, country: i.country,
+    online: i.latest?.combined?.ok ?? false,
+    latency: i.latest?.combined?.latency ?? null,
+    uptime: i.cache?.uptime_percent ?? 0,
+  })), count: isps.length, timestamp: new Date().toISOString() });
+});
+
+// GET /api/v1/verify/:id — verifikasi ASN ISP
+app.get("/api/v1/verify/:id", async (req, res) => {
+  const isp = db.getIspById(Number(req.params.id));
+  if (!isp) return res.status(404).json({ error: "ISP tidak ditemukan" });
+  const { verifyIsp } = require("./verify");
+  const v = await verifyIsp(isp);
+  res.json({ data: v });
+});
+
+// POST /api/v1/keys — buat API key baru (admin only)
+app.post("/api/v1/keys", requireAdmin, (req, res) => {
+  const { name, rateLimit = 60 } = req.body;
+  if (!name) return res.status(400).json({ error: "Parameter name wajib" });
+  const keyInfo = db.createApiKey({ name, rateLimit });
+  res.status(201).json({ data: keyInfo });
+});
+
+// GET /api/v1/keys — list API keys (admin only)
+app.get("/api/v1/keys", requireAdmin, (req, res) => {
+  res.json({ data: db.listApiKeys() });
+});
+
+// DELETE /api/v1/keys/:id — revoke API key (admin only)
+app.delete("/api/v1/keys/:id", requireAdmin, (req, res) => {
+  db.revokeApiKey(Number(req.params.id));
+  res.json({ success: true });
+});
+
+// ── Swagger/OpenAPI Docs ──
+const swaggerSpec = {
+  openapi: "3.0.3",
+  info: {
+    title: "ISP Monitor API",
+    version: "1.0.0",
+    description: "Real-time ISP & network health monitoring API. Get real-time ISP status, latency, uptime, and history.",
+    contact: { name: "Cah Panggul", url: "https://t.me/cahpanggul" },
+    license: { name: "MIT", url: "https://opensource.org/licenses/MIT" }
+  },
+  servers: [{ url: "https://isp-monitor.my.id", description: "Production" }],
+  tags: [
+    { name: "ISPs", description: "ISP list, status, and history" },
+    { name: "Stats", description: "Global statistics" },
+    { name: "Keys", description: "API key management (admin)" },
+    { name: "Health", description: "Health checks" }
+  ],
+  components: {
+    securitySchemes: {
+      ApiKeyAuth: { type: "apiKey", in: "header", name: "X-API-Key", description: "API key via X-API-Key header or ?api_key= query" }
+    },
+    schemas: {
+      ISP: {
+        type: "object",
+        properties: {
+          id: { type: "integer" }, name: { type: "string" }, country: { type: "string" }, region: { type: "string" },
+          http_url: { type: "string" }, order_index: { type: "integer" }, notes: { type: "string" },
+          cache: { type: "object" }, recent_status: { type: "array" }, regions: { type: "object" },
+          official: { type: "object" }, latest: { type: "object" }
+        }
+      },
+      ISPDetail: {
+        allOf: [{ $ref: "#/components/schemas/ISP" }, { type: "object", properties: { history: { type: "array" } } }]
+      },
+      Stats: {
+        type: "object",
+        properties: {
+          total_isps: { type: "integer" }, checks_today: { type: "integer" },
+          successful_checks: { type: "integer" }, overall_uptime_percent: { type: "number" },
+          last_updated: { type: "string", format: "date-time" }
+        }
+      }
+    }
+  },
+  security: [{ ApiKeyAuth: [] }],
+  paths: {
+    "/api/v1/isp": {
+      get: {
+        tags: ["ISPs"],
+        summary: "List all ISPs with current status",
+        responses: { "200": { description: "Success", content: { "application/json": { schema: { type: "object", properties: { data: { type: "array", items: { $ref: "#/components/schemas/ISP" } }, count: { type: "integer" } } } } } }}
+      }
+    },
+    "/api/v1/isp/{id}": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Get ISP detail with history",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: { "200": { description: "ISP detail", content: { "application/json": { schema: { $ref: "#/components/schemas/ISPDetail" } } } } }
+      }
+    },
+    "/api/v1/isp/{id}/history": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Get ISP latency history",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "integer" } },
+          { name: "range", in: "query", schema: { type: "string", enum: ["1h", "6h", "24h", "7d", "30d"], default: "24h" } },
+          { name: "type", in: "query", schema: { type: "string", enum: ["ping", "http", "combined", "status"] } }
+        ],
+        responses: { "200": { description: "History data", content: { "application/json": { schema: { type: "object", properties: { data: { type: "array" }, count: { type: "integer" }, range: { type: "string" }, type: { type: "string" } } } } } }}
+      }
+    },
+    "/api/v1/dashboard": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Full dashboard data (all ISPs with latest status)",
+        responses: { "200": { description: "Dashboard data", content: { "application/json": { schema: { type: "object", properties: { data: { type: "array", items: { $ref: "#/components/schemas/ISP" } }, timestamp: { type: "string", format: "date-time" } } } } } }}
+      }
+    },
+    "/api/v1/stats": {
+      get: {
+        tags: ["Stats"],
+        summary: "Global statistics",
+        responses: { "200": { description: "Global stats", content: { "application/json": { schema: { $ref: "#/components/schemas/Stats" } } } } }
+      }
+    },
+    "/api/v1/history/{id}": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Get ISP history (legacy endpoint)",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "integer" } },
+          { name: "check_type", in: "query", schema: { type: "string" } },
+          { name: "since", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "limit", in: "query", schema: { type: "integer" } },
+          { name: "range", in: "query", schema: { type: "string", enum: ["24h", "7d", "30d"] } }
+        ],
+        responses: { "200": { description: "History array" }}
+      }
+    },
+    "/api/v1/status/{id}": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Get ISP uptime status for today",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: { "200": { description: "Uptime status" }}
+      }
+    },
+    "/api/v1/verify/{id}": {
+      get: {
+        tags: ["ISPs"],
+        summary: "Verify ISP ASN ownership",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: { "200": { description: "Verification result" }}
+      }
+    },
+    "/api/v1/keys": {
+      get: {
+        tags: ["Keys"],
+        summary: "List API keys (admin)",
+        security: [{ ApiKeyAuth: [] }],
+        responses: { "200": { description: "API keys list" }}
+      },
+      post: {
+        tags: ["Keys"],
+        summary: "Create new API key (admin)",
+        security: [{ ApiKeyAuth: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string" }, rateLimit: { type: "integer", default: 60 } } } } } },
+        responses: { "201": { description: "Created" }}
+      }
+    },
+    "/api/v1/keys/{id}": {
+      delete: {
+        tags: ["Keys"],
+        summary: "Revoke API key (admin)",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: { "200": { description: "Revoked" }}
+      }
+    },
+}
+
+}
+
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customCss: ".swagger-ui .topbar { display: none }", customSiteTitle: "ISP Monitor API Docs" }));
+app.get("/docs.json", (_req, res) => res.json(swaggerSpec));
+
+// 404 kustom
+app.use((_req, res) => {
+  res.status(404).sendFile(path.join(PUBLIC, "404.html"));
+});
+
+// 500 kustom
+app.use((err, _req, res, _next) => {
+  console.error("Unhandled error:", err?.message || err);
+  res.status(500).type("html").send(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>500 — Error Server</title><style>body{font-family:system-ui,sans-serif;background:#0a0e17;color:#e6edf3;display:flex;align-items:center;justify-content:center;min-height:100vh}.wrap{text-align:center}.code{font-size:72px;font-weight:800;background:linear-gradient(135deg,#f85149,#d29922);-webkit-background-clip:text;-webkit-text-fill-color:transparent}h1{font-size:20px}p{color:#8b949e}a{display:inline-block;padding:10px 20px;background:linear-gradient(135deg,#58a6ff,#a371f7);color:#fff;border-radius:10px;text-decoration:none;font-weight:600}</style></head><body><div class="wrap"><div class="code">500</div><h1>Terjadi Kesalahan</h1><p>Coba refresh atau kembali ke beranda.</p><a href="/">← Kembali</a></div></body></html>`);
 });
 
 let workerStarted = false;
