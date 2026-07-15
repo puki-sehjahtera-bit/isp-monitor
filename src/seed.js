@@ -19,7 +19,8 @@ const GLOBAL_ISPS = [
   ["Iconnet", "ID", "Nasional", "", "iconnet.id", 9, "PLN Infrastruktur, jangkauan luas", "isp", "141967", ""],
 
   // ── ISP Lokal / Regional Indonesia (kategori "local") ──
-  ["DBN Menaksopal", "ID", "Jawa Tengah", "", "", 35, "ISP regional Jateng", "local", "", ""],
+  ["DBN", "ID", "Jawa Tengah", "", "", 35, "ISP regional Jateng", "local", "", ""],
+  ["Menak Sopal", "ID", "Jawa Tengah", "", "", 38, "ISP regional Jateng", "local", "", ""],
   ["Chandella Lintas Media", "ID", "Jawa Timur", "", "", 36, "ISP regional Jatim", "local", "", ""],
   ["Buroq Gayatri", "ID", "Jawa Barat", "", "https://buroq.com", 37, "ISP regional Jabar", "local", "", ""],
 
