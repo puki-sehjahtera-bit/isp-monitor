@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "deploy:pages": "wrangler pages deploy public --project-name isp-monitor-frontend"
   },
   "engines": {
     "node": ">=18"
@@ -21,5 +22,8 @@
     "socket.io": "^4.7.5",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.111.0"
   }
 }

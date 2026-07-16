@@ -98,6 +98,7 @@ for (const [table, col, ddl] of [
   ["isp_list", "asn", "TEXT"],
   ["isp_list", "real_ip", "TEXT"],
   ["isp_list", "status_url", "TEXT"],
+  ["ping_reports", "kategori", "TEXT DEFAULT 'global'"],
 ]) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
   if (!cols.includes(col)) db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`).run();
@@ -380,9 +381,41 @@ function getStats() {
   return _statsCache;
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ping_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    isp TEXT NOT NULL,
+    city TEXT,
+    ping INTEGER,
+    server_ping INTEGER,
+    saran TEXT,
+    kategori TEXT DEFAULT 'global',
+    created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+  )
+`);
+
+function addPingReport({ isp, city, ping, serverPing, saran, kategori }) {
+  db.prepare(
+    "INSERT INTO ping_reports (isp, city, ping, server_ping, saran, kategori) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(isp, city || null, ping ?? null, serverPing ?? null, saran || null, kategori || "global");
+}
+
+function getPingReports(limit = 200, kategori = null) {
+  if (kategori && kategori !== "all") {
+    return db.prepare(
+      "SELECT isp, city, ping, server_ping AS serverPing, saran, kategori, created_at FROM ping_reports WHERE kategori = ? ORDER BY id DESC LIMIT ?"
+    ).all(kategori, limit);
+  }
+  return db.prepare(
+    "SELECT isp, city, ping, server_ping AS serverPing, saran, kategori, created_at FROM ping_reports ORDER BY id DESC LIMIT ?"
+  ).all(limit);
+}
+
 module.exports = {
   db,
   DB_PATH,
+  addPingReport,
+  getPingReports,
   getOrCreateIsp,
   getAllIsps,
   getIspById,

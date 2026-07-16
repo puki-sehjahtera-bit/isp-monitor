@@ -98,7 +98,7 @@
 </header>
 
 <div class="admin-wrap">
-  <a href="/" class="back-link">← Kembali ke Dashboard</a>
+  <a href="https://isp-monitor.my.id" class="back-link">← Kembali ke Dashboard</a>
   <h1>⚙️ Admin Panel — ISP Monitor</h1>
   <div class="tip">
     Total: <b id="total-isps">0</b> ISP · <span id="last-refresh">–</span>
@@ -170,10 +170,12 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/config.js"></script>
 <script src="/app.js?v=2" defer></script>
 <script>
 (function() {
   // ── Auth ──
+  const API_BASE = (window.CONFIG && window.CONFIG.API_BASE) || "";
   const TOKEN = sessionStorage.getItem("admin_token") || prompt("Admin Token:") || "";
   if (!TOKEN) { window.location.href = "/"; throw new Error("No token"); }
   sessionStorage.setItem("admin_token", TOKEN);
@@ -191,7 +193,8 @@
   window.toast = toast;
 
   // ── Socket ──
-  const socket = io({ timeout: 20000 });
+  const WS_URL = (window.CONFIG && window.CONFIG.WS_URL) || undefined;
+  const socket = io(WS_URL, { timeout: 20000 });
   socket.on("connect", () => {
     document.getElementById("live-dot").parentElement.classList.remove("off");
     document.getElementById("live-dot").classList.add("pulse");
@@ -240,7 +243,7 @@
   // ── Load ISPs ──
   async function loadIsps() {
     try {
-      const r = await fetch("/isps", { headers: { Authorization: "Bearer " + TOKEN } });
+      const r = await fetch(`${API_BASE}/isps`, { headers: { Authorization: "Bearer " + TOKEN } });
       if (r.status === 401) { alert("Token invalid/expired"); logout(); return; }
       allIsps = await r.json();
       renderTable();
@@ -318,7 +321,7 @@
     try {
       const hdrs = { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN };
       const method = document.getElementById("f-id").value ? "PUT" : "POST";
-      const url = method === "PUT" ? "/isps/" + document.getElementById("f-id").value : "/isps";
+      const url = method === "PUT" ? `${API_BASE}/isps/` + document.getElementById("f-id").value : `${API_BASE}/isps`;
       const r = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(await r.text());
       clearForm(); loadIsps(); toast(method === "PUT" ? "ISP diupdate" : "ISP ditambahkan", "ok");
@@ -326,7 +329,7 @@
   }
 
   function edit(id) {
-    fetch("/isps/" + id).then(r => r.json()).then(s => {
+    fetch(`${API_BASE}/isps/` + id).then(r => r.json()).then(s => {
       document.getElementById("f-id").value = s.id;
       document.getElementById("f-name").value = s.name || "";
       document.getElementById("f-country").value = s.country || "";
@@ -351,7 +354,7 @@
   async function del(id) {
     if (!confirm("Hapus ISP ini?")) return;
     try {
-      await fetch("/isps/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
+      await fetch(`${API_BASE}/isps/` + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
       loadIsps(); toast("ISP dihapus", "ok");
     } catch (e) { toast("Gagal hapus: " + e.message, "err"); }
   }
@@ -373,7 +376,7 @@
   // ── API Keys ──
   async function loadApiKeys() {
     try {
-      const r = await fetch("/api/v1/keys", { headers: { Authorization: "Bearer " + TOKEN } });
+      const r = await fetch(`${API_BASE}/api/v1/keys`, { headers: { Authorization: "Bearer " + TOKEN } });
       if (r.status === 401) { alert("Token invalid"); return; }
       const keys = await r.json();
       const tbody = document.getElementById("api-keys-tbody");
@@ -396,7 +399,7 @@
     const rateLimit = parseInt(document.getElementById("ak-rate").value) || 60;
     if (!name) return toast("Nama key wajib diisi", "err");
     try {
-      const r = await fetch("/api/v1/keys", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify({ name, rateLimit }) });
+      const r = await fetch(`${API_BASE}/api/v1/keys`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify({ name, rateLimit }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Gagal buat key");
       toast("API Key dibuat: " + data.key, "ok");
@@ -408,7 +411,7 @@
   async function revokeKey(id) {
     if (!confirm("Cabut API key ini?")) return;
     try {
-      await fetch("/api/v1/keys/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
+      await fetch(`${API_BASE}/api/v1/keys/` + id, { method: "DELETE", headers: { Authorization: "Bearer " + TOKEN } });
       loadApiKeys(); toast("Key dicabut", "ok");
     } catch (e) { toast("Gagal: " + e.message, "err"); }
   }

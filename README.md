@@ -19,18 +19,44 @@ Fitur:
 ```
 isp-monitor/
 ├── src/
-│   ├── server.js     # Express + Socket.IO + REST API + static
+│   ├── server.js     # Express + Socket.IO + REST API + static (API server)
 │   ├── worker.js     # Loop monitoring (lokal / probe) + alert global-down
 │   ├── checks.js     # ICMP ping (fallback HTTP)
 │   ├── db.js         # Layer DB (better-sqlite3)
 │   ├── seed.js       # Seed ~19 ISP global nyata
 │   └── probe.js      # Entry probe region (tanpa API server)
-├── public/           # Frontend (index.html, app.js, style.css)
+├── public/           # Frontend statis (index.html, app.js, config.js, style.css)
+│   └── config.js     # Pusat config: API_BASE + WS_URL (domain API terpisah)
+├── wrangler.toml     # Deploy frontend ke Cloudflare Pages (static murni)
 ├── package.json
 ├── Dockerfile
 ├── docker-compose.yml
 ├── railway.json
 └── .env.example
+```
+
+## Arsitektur (Frontend statis ↔ Backend API terpisah)
+
+Frontend di-deploy ke **Cloudflare Pages** (static, `wrangler.toml` → output `public/`).
+Backend API jalan di server sendiri (**Railway / VPS**) di domain `api.isp-monitor.my.id`.
+
+- `public/config.js` menentukan ke mana frontend kirim data:
+  `API_BASE` (REST) + `WS_URL` (Socket.IO). Ganti sesuai domain kamu.
+- `server.js` sudah pasang CORS (origin dari env `CORS_ORIGINS`, default
+  `https://isp-monitor.my.id`) + Socket.IO CORS ke domain frontend.
+- **Admin panel** (`/admin`) tetap di server API (butuh token + akses tulis),
+  tidak di-deploy ke Pages. Link admin di UI mengarah ke `api.isp-monitor.my.id/admin`.
+
+Deploy frontend:
+```bash
+# Cloudflare Pages (via wrangler, output = folder public/)
+npx wrangler pages deploy public --project-name isp-monitor-frontend
+# atau connect repo di Cloudflare Dashboard, build output = public
+```
+
+Deploy backend (API) terpisah — lihat bagian Railway/Docker di bawah, lalu set:
+```
+CORS_ORIGINS=https://isp-monitor.my.id
 ```
 
 ## Install (lokal)

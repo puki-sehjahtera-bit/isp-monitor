@@ -1,0 +1,8 @@
+name = "isp-monitor-frontend"
+compatibility_date = "2024-09-23"
+
+# Frontend statis murni (Cloudflare Pages).
+# Deploy: npm run deploy:pages  (atau: wrangler pages deploy public)
+# Output = folder public/ (HTML/JS/CSS statis).
+# API di domain terpisah: https://api.isp-monitor.my.id
+# API_BASE/WS_URL diisi di public/config.js.

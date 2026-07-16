@@ -1,6 +1,7 @@
 "use strict";
 require("dotenv").config();
 const db = require("./db");
+const { recordDowntime, closeDowntime, getDowntime } = db;
 const { checkPing, checkHttp, checkStatusPage, checkOne, hostOf } = require("./checks");
 
 const PROBE = process.env.PROBE_REGION || "local";
@@ -52,6 +53,7 @@ async function evaluateAlerts() {
         lastAlertAt.set(isp.id, now);
       }
       db.setAlertState(isp.id, 1);
+      recordDowntime(isp.id, `DOWN: ${keys.join(", ")}`);
       console.warn("ALERT DOWN:", isp.name);
     } else if (state === 2) {
       if (cooled) {
@@ -59,11 +61,13 @@ async function evaluateAlerts() {
         lastAlertAt.set(isp.id, now);
       }
       db.setAlertState(isp.id, 2);
+      recordDowntime(isp.id, `DEGRADED: ${keys.filter((k) => !probes[k]).join(", ")}`);
       console.warn("ALERT DEGRADED:", isp.name);
     } else {
       await sendTelegram(`🟢 *RECOVERED* — ${isp.name} (${isp.country})\nSudah reachable dari: ${up.join(', ')}`);
       lastAlertAt.set(isp.id, 0);
       db.setAlertState(isp.id, 0);
+      closeDowntime(isp.id);
       console.info("ALERT UP:", isp.name);
     }
   }

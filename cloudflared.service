@@ -1,12 +1,13 @@
 [Unit]
 Description=Cloudflared tunnel — ISP Monitor (URL tetap)
-After=network.target isp-monitor.service
-Requires=isp-monitor.service
+After=network.target
 
 [Service]
 Type=simple
 User=bahcron
-ExecStart=/usr/local/bin/cloudflared tunnel run isp-monitor
+EnvironmentFile=/home/bahcron/isp-monitor/.cf-tunnel-token
+ExecStartPre=/bin/sh -c 'until curl -sf http://localhost:8000/healthz >/dev/null; do sleep 2; done'
+ExecStart=/home/bahcron/bin/cloudflared --no-autoupdate tunnel run --token ${CF_TUNNEL_TOKEN}
 Restart=always
 RestartSec=5
 

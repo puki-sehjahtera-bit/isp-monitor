@@ -51,9 +51,12 @@ body.light header { background:rgba(255,255,255,.6); }
   background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff;
   box-shadow:0 4px 16px rgba(88,166,255,.4);
 }
+.logo-img { width:auto;height:32px;border-radius:10px;object-fit:cover;border:1px solid var(--line); }
 header h1 { margin:0; font-size:20px; letter-spacing:.3px; }
 header .sub { color:var(--mut); font-size:12px; }
 .head-right { display:flex; align-items:center; gap:14px; }
+.pingboard-link { background:var(--acc); border:1px solid var(--acc); color:#fff; border-radius:10px; padding:0 14px; height:38px; display:inline-flex; align-items:center; font-weight:600; font-size:13px; text-decoration:none; transition:.15s; }
+.pingboard-link:hover { opacity:.9; }
 .live { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--ok); letter-spacing:1px; }
 .live .dot { width:9px;height:9px;border-radius:50%;background:var(--ok); animation:pulse 1.6s infinite; }
 .live.off .dot { background:var(--fail); animation:none; }
@@ -240,6 +243,7 @@ body.light header { background:rgba(240,244,250,.8); }
 .footer-inner { max-width:1000px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
 .foot-brand { display:flex; align-items:center; gap:10px; }
 .foot-logo { font-size:22px; color:var(--acc); }
+.foot-logo-img { width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line); }
 .foot-name { font-weight:600; font-size:14px; color:var(--txt); }
 .foot-desc { font-size:11px; color:var(--mut); margin-top:2px; }
 .foot-mid { font-size:16px; letter-spacing:5px; text-transform:uppercase; color:var(--acc); font-weight:600; opacity:.7; text-align:center; }

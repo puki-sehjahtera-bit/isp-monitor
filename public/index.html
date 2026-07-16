@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>ISP Monitor — Global Network Health</title>
-<link rel="stylesheet" href="/style.css?v=2" />
+<link rel="stylesheet" href="/style.css?v=3" />
 <script defer src="/socket.io/socket.io.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
@@ -34,13 +34,15 @@ if ('serviceWorker' in navigator) {
 
 <header>
   <div class="brand">
-    <div class="logo">◉</div>
+    <img src="/logo.jpg?v=1" alt="Logo" class="logo-img" />
     <div>
       <h1>ISP Monitor</h1>
       <span class="sub">Global Network Health · realtime</span>
     </div>
   </div>
   <div class="head-right">
+    <a href="/pingboard" class="pingboard-link" title="Cek latensi ISP kamu">⚡ Cek ISP Saya</a>
+    <!-- Admin panel tetap di server API (butuh token + akses tulis) -->
     <div class="live"><span class="dot pulse" id="live-dot"></span><span id="live-txt">LIVE</span></div>
     <button id="theme-toggle" class="icon-btn" title="Light / Dark">🌓</button>
   </div>
@@ -92,7 +94,7 @@ if ('serviceWorker' in navigator) {
     <div class="ctrl-group">
       <button id="btn-export-csv" class="btn sm" title="Export CSV">📥 CSV</button>
       <button id="btn-export-json" class="btn sm" title="Export JSON">📥 JSON</button>
-      <a href="/admin" class="btn sm" title="Admin Panel">⚙️</a>
+      <a href="https://api.isp-monitor.my.id/admin" class="btn sm" title="Admin Panel">⚙️</a>
     </div>
     <span class="hint" id="interval-hint">Cek realtime tiap 10-30 dtk</span>
   </div>
@@ -158,16 +160,16 @@ if ('serviceWorker' in navigator) {
       <div class="foot-logo">◉</div>
       <div>
         <div class="foot-name">ISP Monitor</div>
-        <div class="foot-desc">Pemantau kesehatan jaringan global secara real-time</div>
+        <div class="foot-desc">Pemantauan Jaringan Real-Time & Komunitas</div>
       </div>
     </div>
-    <div class="foot-mid">Cah Panggul</div>
+    <div class="foot-mid"></div>
     <div class="foot-links">
       <button onclick="shareTikTok()" class="foot-btn" title="TikTok">🎵</button>
       <a href="https://saweria.co/cahpanggul" target="_blank" rel="noopener" class="foot-btn" title="Dukung Saya">☕</a>
     </div>
   </div>
-  <div class="foot-copy">© 2026 Cah Panggul · Made with ❤️</div>
+  <div class="foot-copy">© 2026 Cah Panggul · Dibuat dengan ❤️</div>
 </footer>
 
 <!-- Modal detail -->
@@ -222,6 +224,7 @@ if ('serviceWorker' in navigator) {
 </section>
 
 <script src="/chart.min.js" defer></script>
-<script src="/app.js?v=2" defer></script>
+<script src="/config.js"></script>
+<script src="/app.js?v=3" defer></script>
 </body>
 </html>

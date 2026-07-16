@@ -1,5 +1,7 @@
 "use strict";
-const socket = io({ timeout: 20000 });
+const API_BASE = (window.CONFIG && window.CONFIG.API_BASE) || "";
+const WS_URL = (window.CONFIG && window.CONFIG.WS_URL) || undefined;
+const socket = io(WS_URL, { timeout: 20000 });
 const store = {};
 window.onerror = (m) => console.error("JS:", m);
 let openId = null, detailChart = null, globalChart = null, compChartA = null, compChartB = null;
@@ -308,9 +310,9 @@ async function loadDashboard() {
       `).join("");
     }
     const [dash, regions, stats] = await Promise.all([
-      fetch("/dashboard").then((r) => r.json()),
-      fetch("/regions").then((r) => r.json()),
-      fetch("/stats").then((r) => r.json()),
+      fetch(`${API_BASE}/dashboard`).then((r) => r.json()),
+      fetch(`${API_BASE}/regions`).then((r) => r.json()),
+      fetch(`${API_BASE}/stats`).then((r) => r.json()),
     ]);
     dash.forEach((d) => {
       const prev = store[d.id];
@@ -488,7 +490,7 @@ function cardEl(s) {
 
 async function loadVerify(id) {
   try {
-    const v = await fetch(`/verify/${id}`).then((r) => r.json());
+    const v = await fetch(`${API_BASE}/verify/${id}`).then((r) => r.json());
     store[id].verify = v;
     const el = $(`#vrf-${id}`);
     if (el) el.textContent = v.match === true ? "✅" : v.match === false ? "⚠️" : "";
@@ -497,7 +499,7 @@ async function loadVerify(id) {
 window.verifyOne = async (id) => {
   const el = $(`#vrf-${id}`);
   if (el) el.textContent = "…";
-  const v = await fetch(`/verify/${id}`).then((r) => r.json());
+  const v = await fetch(`${API_BASE}/verify/${id}`).then((r) => r.json());
   store[id].verify = v;
   if (el) el.textContent = v.match === true ? "✅" : v.match === false ? "⚠️" : "";
   if (v.match === false) console.warn(`Verifikasi ${id}: ASN beda`, v);
@@ -661,7 +663,7 @@ async function openDetail(id, range = "24h") {
   $("#modal-title").textContent = `Analitik — ${s.name}`;
   $("#modal").classList.remove("hidden");
   $$(".range-btn").forEach((b) => b.classList.toggle("active", b.dataset.range === range));
-  const hist = await fetch(`/history/${id}?range=${range}`).then((r) => r.json());
+  const hist = await fetch(`${API_BASE}/history/${id}?range=${range}`).then((r) => r.json());
   const last = hist[0];
   $("#modal-spark").textContent = last ? `Terakhir: ${last.recorded_at} · ${last.status ? "UP" : "DOWN"}` : "Belum ada data";
   if (detailChart) detailChart.destroy();
@@ -787,7 +789,7 @@ function fillCompSelects() {
   $("#comp-b").innerHTML = opts;
 }
 async function loadCompChart(id, canvasId, nameId) {
-  const hist = await fetch(`/history/${id}?range=24h`).then((r) => r.json());
+  const hist = await fetch(`${API_BASE}/history/${id}?range=24h`).then((r) => r.json());
   $(nameId).textContent = Object.values(store).find((s) => s.id === id)?.name || "";
   const ch = buildChart(id, canvasId, hist);
   return ch;
@@ -862,7 +864,7 @@ $("#btn-liveping").onclick = async () => {
 // ── Affiliate links loader ──
 async function loadAffiliates() {
   try {
-    const res = await fetch("/api/affiliates");
+    const res = await fetch(`${API_BASE}/api/affiliates`);
     const data = await res.json();
     const container = $("#affiliate-links");
     if (!container || !data?.links?.length) return;
@@ -878,6 +880,24 @@ window.embedBadge = (id) => {
   const code = `<a href="${window.location.origin}" target="_blank"><img src="${url}" alt="ISP Status" /></a>`;
   navigator.clipboard.writeText(code).then(() => alert("Kode embed badge disalin!"));
 };
+
+// ── Mode gelap / terang ──
+function applyTheme(theme) {
+  if (theme === "light") document.body.classList.add("light");
+  else document.body.classList.remove("light");
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.textContent = theme === "light" ? "🌞" : "🌙";
+}
+(function initTheme() {
+  const t = localStorage.getItem("theme") || "dark";
+  applyTheme(t);
+})();
+const themeBtn = document.getElementById("theme-toggle");
+if (themeBtn) themeBtn.addEventListener("click", () => {
+  const next = document.body.classList.contains("light") ? "dark" : "light";
+  localStorage.setItem("theme", next);
+  applyTheme(next);
+});
 
 loadAffiliates();
 initGlobalChart();

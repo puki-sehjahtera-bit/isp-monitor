@@ -18,6 +18,11 @@ const API_HOST = process.env.API_HOST || "::";
 const PORT = parseInt(process.env.PORT || process.env.API_PORT || "8000", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 
+// Origin frontend (static hosting) yang diizinkan akses API cross-origin.
+// Pisah koma kalau lebih dari 1: "https://isp-monitor.my.id,https://www.x.com"
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://isp-monitor.my.id")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+
 // Lindungi endpoint tulis. Kalau ADMIN_TOKEN kosong -> terbuka (mode dev).
 function requireAdmin(req, res, next) {
   if (!ADMIN_TOKEN) return next();
@@ -28,6 +33,20 @@ function requireAdmin(req, res, next) {
 
 const app = express();
 app.set("trust proxy", 1);
+
+// ── CORS (frontend static <-> API terpisah) ──
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin || CORS_ORIGINS.includes("*") || CORS_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Api-Key");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json());
 
 // ── Visitor log ── (paling atas biar semua request tercatat)
@@ -79,10 +98,104 @@ function apiKeyLimiter(req, res, next) {
 }
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: {
+    origin: CORS_ORIGINS.includes("*") ? "*" : CORS_ORIGINS,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
 const PUBLIC = path.join(__dirname, "..", "public");
 app.use(express.static(PUBLIC));
+
+// ── Fitur Ping Dashboard (community latency) ──
+let liveTargetStats = [
+  { name: "Cloudflare DNS", ip: "1.1.1.1", ping: 0, status: "OFFLINE" },
+  { name: "Google DNS", ip: "8.8.8.8", ping: 0, status: "OFFLINE" },
+];
+let userReports = [];
+
+app.post("/api/report-isp", (req, res) => {
+  const { isp, city, ping, serverPing, saran, kategori } = req.body || {};
+  if (!isp || ping === undefined) return res.status(400).json({ error: "Data tidak lengkap" });
+  const kat = ["lokal", "global", "sosmed"].includes(kategori) ? kategori : "global";
+  const newReport = {
+    isp, city, ping,
+    serverPing: typeof serverPing === "number" ? serverPing : null,
+    saran: typeof saran === "string" ? saran.slice(0, 280) : "",
+    kategori: kat,
+    timestamp: new Date(),
+  };
+  userReports.unshift(newReport);
+  if (userReports.length > 500) userReports.pop();
+  db.addPingReport({ isp, city, ping, serverPing: newReport.serverPing, saran: newReport.saran, kategori: kat });
+  console.log(`[Laporan Masuk] ${isp} (${city}) [${kat}]: ${ping}ms · server ${newReport.serverPing}ms · "${newReport.saran}"`);
+  io.emit("ping:dashboard", { type: "NEW_USER_REPORT", data: newReport, allReports: userReports });
+  res.json({ status: "OK" });
+});
+
+// List laporan per kategori (lokal/global/sosmed/all)
+app.get("/api/reports", (req, res) => {
+  const kat = req.query.kategori || "all";
+  res.json({ data: db.getPingReports(500, kat), kategori: kat });
+});
+
+app.get("/ping-app.js", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(PUBLIC, "ping-app.js"));
+});
+app.get("/pingboard", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(PUBLIC, "ping-dashboard.html"));
+});
+
+// Hapus semua laporan pengunjung (butuh ADMIN_TOKEN)
+app.delete("/api/reports", requireAdmin, (_req, res) => {
+  db.db.prepare("DELETE FROM ping_reports").run();
+  userReports = [];
+  io.emit("ping:dashboard", { type: "REPORTS_CLEARED" });
+  res.json({ status: "OK", cleared: true });
+});
+
+// Deteksi ISP/user info di BACKEND (adblock gak sentuh server kita)
+// Baca IP ASLI user dari x-forwarded-for (cloudflare pass IP klien), bukan IP server.
+app.get("/api/isp-info", async (req, res) => {
+  const clientIp = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "")
+    .split(",")[0].trim();
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const url = clientIp ? `https://ipwho.is/${clientIp}` : "https://ipwho.is/";
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    const d = await r.json();
+    if (d && d.connection) {
+      return res.json({
+        isp: d.connection.isp || d.connection.org || "Unknown",
+        city: d.city || "-",
+        region: d.region || "",
+      });
+    }
+  } catch (_) {}
+  res.json({ isp: "Unknown", city: "-", region: "" });
+});
+
+// Probe ringan di domain sendiri (ukur RTT user -> server kita)
+app.get("/api/probe", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ t: Date.now() });
+});
+
+function startInternalMonitoring() {
+  setInterval(() => {
+    liveTargetStats = liveTargetStats.map((target) => {
+      const simulatedPing = Math.floor(Math.random() * 50) + 10;
+      return { ...target, ping: simulatedPing, status: "ONLINE" };
+    });
+    io.emit("ping:dashboard", { type: "INTERNAL_MONITOR_UPDATE", data: liveTargetStats });
+  }, 10000);
+}
 
 // Service worker untuk routing client-side (offline mode)
 app.get("/sw.js", (_req, res) => {
@@ -645,6 +758,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).type("html").send(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>500 — Error Server</title><style>body{font-family:system-ui,sans-serif;background:#0a0e17;color:#e6edf3;display:flex;align-items:center;justify-content:center;min-height:100vh}.wrap{text-align:center}.code{font-size:72px;font-weight:800;background:linear-gradient(135deg,#f85149,#d29922);-webkit-background-clip:text;-webkit-text-fill-color:transparent}h1{font-size:20px}p{color:#8b949e}a{display:inline-block;padding:10px 20px;background:linear-gradient(135deg,#58a6ff,#a371f7);color:#fff;border-radius:10px;text-decoration:none;font-weight:600}</style></head><body><div class="wrap"><div class="code">500</div><h1>Terjadi Kesalahan</h1><p>Coba refresh atau kembali ke beranda.</p><a href="/">← Kembali</a></div></body></html>`);
 });
 
+// ── Fitur Ping Dashboard (community latency) ──
 let workerStarted = false;
 function startBackgroundWorker() {
   if (workerStarted) return;
@@ -658,6 +772,9 @@ io.on("connection", (socket) => {
     const isp = db.getIspById(Number(ispId));
     if (isp) await worker.checkSingleNow(isp, broadcast);
   });
+  // Kirim data awal ke klien ping dashboard
+  console.log(`[ping] client connect, kirim ${userReports.length} laporan`);
+  socket.emit("ping:dashboard", { type: "INIT_DATA", targets: liveTargetStats, reports: userReports });
 });
 
 async function main() {
@@ -667,6 +784,10 @@ async function main() {
   seed();
 
   startBackgroundWorker();
+  startInternalMonitoring();
+
+  // Muat laporan tersimpan dari DB ke memori (biar tahan restart)
+  try { userReports = db.getPingReports(500).map((r) => ({ ...r, timestamp: r.created_at })); } catch (e) { console.error("gagal muat laporan:", e.message); }
   setInterval(() => worker.evaluateAlerts().catch(() => {}), 60 * 1000);
 
   const PRUNE_DAYS = Math.max(1, parseInt(process.env.PRUNE_DAYS || "30", 10));
@@ -680,7 +801,7 @@ async function main() {
   // Tweet checker tiap 5 menit
   setInterval(() => twitter.checkAndTweet().catch(() => {}), 300000);
 
-  server.listen(PORT, API_HOST, () => {
+    server.listen(PORT, API_HOST, () => {
     console.log(`ISP Monitor jalan di http://${API_HOST}:${PORT}`);
     if (process.env.TWITTER_API_KEY) console.log("Twitter bot aktif");
   });
