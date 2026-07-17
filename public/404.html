@@ -17,9 +17,17 @@
   p { color: #8b949e; margin-bottom: 20px; }
   a { display: inline-block; padding: 10px 20px; background: linear-gradient(135deg,#58a6ff,#a371f7); color: #fff; border-radius: 10px; text-decoration: none; font-weight: 600; }
   a:hover { opacity: .9; }
+  .bg-orbs { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+  .bg-orbs span { position:absolute; border-radius:50%; filter:blur(60px); opacity:.35; }
+  .bg-orbs span:nth-child(1){ width:380px;height:380px;background:#1f6feb;top:-80px;left:-60px; animation:float 14s ease-in-out infinite; }
+  .bg-orbs span:nth-child(2){ width:320px;height:320px;background:#a371f7;bottom:-90px;right:10%; animation:float 18s ease-in-out infinite reverse; }
+  .bg-orbs span:nth-child(3){ width:260px;height:260px;background:#3fb950;top:40%;right:-40px; animation:float 16s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(40px)} }
+  .wrap { position:relative; z-index:1; }
 </style>
 </head>
 <body>
+<div class="bg-orbs"><span></span><span></span><span></span></div>
 <div class="wrap">
   <div class="code">404</div>
   <h1>Halaman Tidak Ditemukan</h1>
