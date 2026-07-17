@@ -96,7 +96,19 @@ if ('serviceWorker' in navigator) {
       <button id="btn-export-json" class="btn sm" title="Export JSON">📥 JSON</button>
       <a href="https://api.isp-monitor.my.id/admin" class="btn sm" title="Admin Panel">⚙️</a>
     </div>
-    <span class="hint" id="interval-hint">Cek realtime tiap 10-30 dtk</span>
+    <span class="hint" id="interval-hint">Ping dari perangkat kamu tiap 10 dtk</span>
+  </div>
+
+  <!-- Info: mode user-ping -->
+  <div class="ping-info card">
+    <b>ℹ️ Mode User-Ping:</b> Latensi di atas diukur <b>dari perangkat & jaringan kamu langsung ke tujuan ISP</b> (bukan dari server).
+    Tiap kartu refresh otomatis tiap 10 detik.
+    <ul style="margin:8px 0 0 18px;font-size:12px;color:var(--mut)">
+      <li>🟢 = tujuan reachable dari kamu</li>
+      <li>🟡 = internet kamu hidup, tapi tujuan spesifik gak respon</li>
+      <li>🔴 = gak bisa dihubungi dari perangkat kamu</li>
+      <li>Angka = RTT HTTPS dari browser ke tujuan (bukan ICMP ping). Server mati pun halaman ini tetap jalan.</li>
+    </ul>
   </div>
 
   <!-- Grup region / peta -->
