@@ -79,8 +79,14 @@ function renderTargets(targets) {
 let currentKat = "all";
 function fmtTime(ts) {
   if (!ts) return "Baru saja";
-  const d = new Date(ts);
-  if (isNaN(d)) return "Baru saja";
+  // SQLite format "2026-07-16 17:07:50" -> ISO "2026-07-16T17:07:50" (WIB)
+  let d;
+  if (typeof ts === "string" && ts.includes(" ")) {
+    d = new Date(ts.replace(" ", "T") + "+07:00");
+  } else {
+    d = new Date(ts);
+  }
+  if (isNaN(d.getTime())) return "Baru saja";
   const pad = (n) => String(n).padStart(2, "0");
   const jam = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const now = Date.now();
