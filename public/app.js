@@ -71,10 +71,6 @@ const I18N = {
     refreshBtn: "↻ Refresh",
     loading: "⏳ Memuat data…",
     errorLoad: "❌ Gagal memuat. Coba lagi 3 detik…",
-    livePing: "Tes latensi browser ke semua server target secara live",
-    startLivePing: "🏓 Mulai Live Ping",
-    pinging: "🏓 Ping…",
-    livePingDone: "✅ Selesai",
     offline: "TIDAK TERHUBUNG",
     online: "LIVE",
     downloadChart: "📷 Download",
@@ -121,11 +117,6 @@ const I18N = {
     normal: "Normal",
     indonesia: "Indonesia",
     english: "English",
-    livePingTitle: "Live Ping Test ⚡ — Cek Koneksi Lo",
-    livePingDesc: "Tes latensi browser ke semua server target secara live",
-    startLivePingBtn: "🏓 Mulai Live Ping",
-    pingingText: "🏓 Ping…",
-    livePingDoneText: "✅ Selesai",
     stats: {
       total: "target",
       failed: "gagal",
@@ -153,10 +144,6 @@ const I18N = {
     refreshBtn: "↻ Refresh",
     loading: "⏳ Loading data…",
     errorLoad: "❌ Failed to load. Retry in 3s…",
-    livePing: "Test browser latency to all target servers live",
-    startLivePing: "🏓 Start Live Ping",
-    pinging: "🏓 Pinging…",
-    livePingDone: "✅ Done",
     offline: "OFFLINE",
     online: "LIVE",
     downloadChart: "📷 Download",
@@ -203,11 +190,6 @@ const I18N = {
     normal: "Normal",
     indonesia: "Indonesia",
     english: "English",
-    livePingTitle: "Live Ping Test ⚡ — Check Your Connection",
-    livePingDesc: "Test browser latency to all target servers live",
-    startLivePingBtn: "🏓 Start Live Ping",
-    pingingText: "🏓 Pinging…",
-    livePingDoneText: "✅ Done",
     stats: {
       total: "targets",
       failed: "failed",
@@ -259,10 +241,6 @@ function applyI18n() {
   if (tabGlobal) tabGlobal.textContent = t("tabs.global");
   const btnVerify = $("#btn-verify-all");
   if (btnVerify) btnVerify.textContent = t("verifyAll");
-  const btnSpeed = $("#btn-speedtest");
-  if (btnSpeed) btnSpeed.textContent = t("startLivePingBtn");
-  const speedStatus = $("#speed-status");
-  if (speedStatus) speedStatus.textContent = t("livePing");
   const liveTxt = $("#live-txt");
   if (liveTxt) liveTxt.textContent = t("online");
   // Update modal buttons
@@ -281,13 +259,6 @@ function applyI18n() {
   });
   // Re-render table to update headers
   renderTable();
-  // Update Live Ping section
-  const lpTitle = $("#liveping-section h2");
-  if (lpTitle) lpTitle.textContent = t("livePingTitle");
-  const lpStatus = $("#lp-status");
-  if (lpStatus) lpStatus.textContent = t("livePing");
-  const btnLiveping = $("#btn-liveping");
-  if (btnLiveping) btnLiveping.textContent = t("startLivePingBtn");
 }
 
 // ── Load ──
@@ -806,60 +777,6 @@ window.compareIsp = async () => {
 $("#comp-a").onchange = window.compareIsp;
 $("#comp-b").onchange = window.compareIsp;
 $("#compare-close").onclick = () => { $("#compare-modal").classList.add("hidden"); };
-
-// ── Live Ping Test ──
-$("#btn-liveping").onclick = async () => {
-  const btn = $("#btn-liveping"); const st = $("#lp-status"); const el = $("#lp-results"); const sum = $("#lp-summary");
-  btn.disabled = true; st.textContent = "🏓 Ping…";
-  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--mut)">⏳ Mengukur latensi ke target…</div>';
-  sum.innerHTML = "";
-
-  const targets = Object.values(store).filter((s) => s.real_ip || s.isp_ip || s.http_url).slice(0, 30);
-  const results = []; let done = 0;
-
-  for (const s of targets) {
-    const url = s.http_url || `http://${s.real_ip || s.isp_ip}`;
-    const t0 = performance.now();
-    let ok = false, ms = null;
-    try {
-      await fetch(url, { mode: "no-cors", signal: AbortSignal.timeout(4000) });
-      ok = true; ms = Math.round(performance.now() - t0);
-    } catch { ms = null; }
-    results.push({ name: s.name, ms, ok });
-    done++;
-    st.textContent = `🏓 Ping… ${done}/${targets.length} (${Math.round(done/targets.length*100)}%)`;
-
-    const sorted = [...results].sort((a, b) => (a.ms || 9999) - (b.ms || 9999));
-    el.innerHTML = sorted.map((r) => {
-      const cls = r.ok ? (r.ms < 100 ? "lp-ok" : r.ms < 300 ? "lp-slow" : "lp-bad") : "lp-fail";
-      const barW = r.ok ? Math.min(100, Math.round(r.ms / 5)) : 0;
-      const barC = r.ok ? (r.ms < 100 ? "var(--ok)" : r.ms < 300 ? "var(--warn)" : "var(--fail)") : "var(--line)";
-      return `<div class="lp-item ${cls}">
-        <span class="lp-name">${r.name}</span>
-        <span class="lp-bar"><i style="width:${barW}%;background:${barC}"></i></span>
-        <span class="lp-ms">${r.ok ? r.ms + "ms" : "❌"}</span>
-      </div>`;
-    }).join("");
-  }
-
-  const okResults = results.filter(r => r.ok);
-  const min = okResults.length ? Math.min(...okResults.map(r => r.ms)) : 0;
-  const max = okResults.length ? Math.max(...okResults.map(r => r.ms)) : 0;
-  const avg = okResults.length ? Math.round(okResults.reduce((a, r) => a + r.ms, 0) / okResults.length) : 0;
-  const loss = results.length - okResults.length;
-
-  sum.innerHTML = `<div class="lp-stats">
-    <div class="lp-stat"><b>${results.length}</b> target</div>
-    <div class="lp-stat"><b>${loss}</b> gagal</div>
-    <div class="lp-stat ok"><b>${min}ms</b> terendah</div>
-    <div class="lp-stat warn"><b>${avg}ms</b> rata²</div>
-    <div class="lp-stat bad"><b>${max}ms</b> tertinggi</div>
-  </div>`;
-
-  st.textContent = `✅ Selesai — ${okResults.length}/${results.length} target reachable, rata² ${avg}ms, packet loss ${Math.round(loss/results.length*100)}%`;
-  btn.textContent = "🏓 Ulangi Live Ping";
-  btn.disabled = false;
-};
 
 // ── Affiliate links loader ──
 async function loadAffiliates() {

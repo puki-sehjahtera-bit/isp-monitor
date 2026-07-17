@@ -315,27 +315,6 @@ body.light header { background:rgba(240,244,250,.8); }
 .comp-charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .comp-col h3 { font-size:13px; margin-bottom:6px; color:var(--txt); }
 
-/* Live Ping Test */
-.liveping-section { margin-top:16px; }
-.lp-controls { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
-.lp-results { display:flex; flex-direction:column; gap:4px; max-height:400px; overflow-y:auto; margin-top:10px; }
-.lp-item { display:grid; grid-template-columns:160px 1fr 60px; gap:8px; align-items:center; padding:6px 10px; background:var(--card-solid); border-radius:8px; font-size:12px; border-left:3px solid var(--line); transition:.15s; }
-.lp-item.lp-ok { border-left-color:var(--ok); }
-.lp-item.lp-slow { border-left-color:var(--warn); }
-.lp-item.lp-bad { border-left-color:var(--fail); }
-.lp-item.lp-fail { border-left-color:var(--line); opacity:.5; }
-.lp-name { color:var(--txt); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.lp-bar { height:8px; background:var(--line); border-radius:6px; overflow:hidden; }
-.lp-bar i { display:block; height:100%; border-radius:6px; transition:width .3s ease; }
-.lp-ms { font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
-.lp-ok .lp-ms { color:var(--ok); } .lp-slow .lp-ms { color:var(--warn); }
-.lp-bad .lp-ms { color:var(--fail); } .lp-fail .lp-ms { color:var(--mut); }
-.lp-summary { margin-top:8px; }
-.lp-stats { display:flex; gap:6px; flex-wrap:wrap; }
-.lp-stat { padding:6px 12px; background:var(--card-solid); border-radius:8px; font-size:12px; color:var(--mut); }
-.lp-stat b { color:var(--txt); font-size:16px; display:block; }
-.lp-stat.ok b { color:var(--ok); } .lp-stat.warn b { color:var(--warn); } .lp-stat.bad b { color:var(--fail); }
-
 /* ── Responsive Mobile ── */
 @media (max-width: 600px) {
   .wrap { padding: 12px 10px 30px; }
@@ -425,9 +404,6 @@ body.light header { background:rgba(240,244,250,.8); }
 .toast-err { border-color: var(--fail); color: var(--fail); }
 @media (max-width: 600px) {
   .toast { left: 10px; right: 10px; bottom: 10px; max-width: none; text-align: center; }
-  .liveping-section { margin-top: 12px; }
-  .lp-item { grid-template-columns: 120px 1fr 55px; gap: 6px; padding: 5px 8px; font-size: 11px; }
-  .lp-name { font-size: 11px; }
   .lp-bar { height: 6px; }
   .lp-ms { font-size: 11px; }
   .lp-stats { gap: 4px; }
