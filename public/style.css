@@ -25,11 +25,19 @@ body.light {
   --shadow: 0 8px 28px rgba(40,60,90,.12);
 }
 * { box-sizing: border-box; }
-body {
-  margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
-  background: radial-gradient(1200px 600px at 80% -10%, #15203a 0%, var(--bg) 55%) , var(--bg);
-  color:var(--txt); min-height:100vh; overflow-x:hidden;
-}
+ body {
+   margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+   background:
+     radial-gradient(1200px 600px at 80% -10%, #15203a 0%, var(--bg) 55%),
+     var(--bg);
+   color:var(--txt); min-height:100vh; overflow-x:hidden;
+ }
+ /* Logo watermark samar di kanan bawah */
+ body::before {
+   content:""; position:fixed; right:-40px; bottom:-40px; z-index:0;
+   width:320px; height:320px; background:url("/logo.jpg") center/cover no-repeat;
+   opacity:.08; filter:blur(2px); pointer-events:none; border-radius:20px;
+ }
 .bg-orbs { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .bg-orbs span { position:absolute; border-radius:50%; filter:blur(60px); opacity:.35; }
 .bg-orbs span:nth-child(1){ width:380px;height:380px;background:#1f6feb;top:-80px;left:-60px; animation:float 14s ease-in-out infinite; }
