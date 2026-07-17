@@ -221,18 +221,8 @@ function setLang(l) {
 }
 
 function applyI18n() {
-  const el = $("#search-input");
-  if (el) el.setAttribute("placeholder", t("searchPlaceholder"));
-  const btnRefresh = $("#btn-refresh");
-  if (btnRefresh) btnRefresh.textContent = t("refreshBtn");
-  const btnCsv = $("#btn-export-csv");
-  if (btnCsv) btnCsv.textContent = t("exportCsv");
-  const btnJson = $("#btn-export-json");
-  if (btnJson) btnJson.textContent = t("exportJson");
   const adminLink = $("a[href='/admin']");
   if (adminLink) adminLink.setAttribute("title", t("adminPanel"));
-  const hint = $("#interval-hint");
-  if (hint) hint.textContent = t("intervalHint");
   const tabAll = $$(".tab[data-scope='all']")[0];
   if (tabAll) tabAll.textContent = t("tabs.all");
   const tabLocal = $$(".tab[data-scope='local']")[0];
@@ -298,8 +288,6 @@ async function loadDashboard() {
       };
     });
     $("#st-online-total") && ($("#st-online-total").textContent = stats.total_isps);
-    fillRegionFilter(regions);
-    fillCatFilter();
     renderSummary(stats);
     renderHero();
     renderRegionGroups();
@@ -334,18 +322,6 @@ function renderHero() {
   if (off === 0) { badge.textContent = "◉ ALL SYSTEMS OPERATIONAL"; badge.className = "hero-badge ok"; }
   else if (on === 0) { badge.textContent = "◉ GLOBAL OUTAGE"; badge.className = "hero-badge bad"; }
   else { badge.textContent = `◉ DEGRADED — ${off} offline`; badge.className = "hero-badge warn"; }
-}
-
-function fillRegionFilter(regions) {
-  const sel = $("#region-filter"); const cur = sel.value;
-  sel.innerHTML = '<option value="">Semua</option>' + regions.map((r) => `<option>${r}</option>`).join("");
-  sel.value = cur;
-}
-function fillCatFilter() {
-  const cats = [...new Set(Object.values(store).map((s) => s.category || "isp"))];
-  const sel = $("#cat-filter"); const cur = sel.value;
-  sel.innerHTML = '<option value="">Semua</option>' + cats.map((c) => `<option value="${c}">${CAT_LABEL[c] || c}</option>`).join("");
-  sel.value = cur;
 }
 
 // ── Summary ──
@@ -660,9 +636,6 @@ function pushDetail(p) {
 window.openDetail = openDetail;
 window.manual = (id) => socket.emit("pingNow", { ispId: id });
 $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId = null; };
-$("#cat-filter").onchange = (e) => { catFilter = e.target.value; renderTable(); };
-$("#region-filter").onchange = (e) => { regionFilter = e.target.value; renderTable(); };
-$("#sort-filter").onchange = (e) => { sortKey = e.target.value; renderTable(); };
 document.querySelectorAll(".tab").forEach((t) => {
   t.onclick = () => {
     scope = t.dataset.scope;
@@ -671,34 +644,12 @@ document.querySelectorAll(".tab").forEach((t) => {
   };
 });
 $("#btn-verify-all").onclick = () => window.verifyAll();
-$("#btn-refresh").onclick = () => {
-  const btn = $("#btn-refresh");
-  btn.textContent = "↻ Memuat…";
-  btn.disabled = true;
-  loadDashboard().finally(() => { btn.textContent = "↻ Refresh"; btn.disabled = false; });
-};
-$("#search-input").oninput = (e) => {
-  clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => {
-    searchQuery = e.target.value;
-    $("#search-clear").hidden = !searchQuery;
-    renderTable();
-  }, 150);
-};
-$("#search-clear").onclick = () => {
-  $("#search-input").value = "";
-  searchQuery = "";
-  $("#search-clear").hidden = true;
-  renderTable();
-  $("#search-input").focus();
-};
 
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea")) return;
   switch (e.key.toLowerCase()) {
     case "r": loadDashboard(); break;
-    case "f": $("#search-input").focus(); e.preventDefault(); break;
     case "escape":
       if (!$("#modal").classList.contains("hidden")) $("#modal-close").click();
       if (!$("#compare-modal").classList.contains("hidden")) $("#compare-close").click();
@@ -714,8 +665,6 @@ function applyCompactMode() {
   document.body.classList.toggle("compact", compactMode);
   localStorage.setItem("compactMode", compactMode);
 }
-$("#btn-export-csv").onclick = () => { window.open("/export/csv", "_blank"); };
-$("#btn-export-json").onclick = () => { window.open("/export/json", "_blank"); };
 
 // ── Share functions ──
 const SHARE_URL = window.location.origin;

@@ -75,45 +75,6 @@ if ('serviceWorker' in navigator) {
     ⏱️ Uptime sesi: <b id="session-uptime">100</b>% &nbsp;·&nbsp; cek: <b id="session-checks">0</b>
   </div>
 
-  <!-- Kontrol -->
-  <div class="toolbar">
-    <div class="tb-search">
-      <span class="tb-ic">🔍</span>
-      <input id="search-input" type="search" placeholder="Cari ISP…" aria-label="Cari ISP" autocomplete="off" />
-      <button id="search-clear" class="tb-x" aria-label="Bersihkan pencarian" hidden>✕</button>
-    </div>
-
-    <div class="tb-filters">
-      <label class="tb-field">
-        <span class="tb-label">Kategori</span>
-        <select id="cat-filter"><option value="">Semua</option></select>
-      </label>
-      <label class="tb-field">
-        <span class="tb-label">Region</span>
-        <select id="region-filter"><option value="">Semua</option></select>
-      </label>
-      <label class="tb-field">
-        <span class="tb-label">Urut</span>
-        <select id="sort-filter">
-          <option value="id">Default</option>
-          <option value="name">Nama A–Z</option>
-          <option value="latency">Latensi ↑</option>
-          <option value="uptime">Uptime ↓</option>
-          <option value="status">Status (down dulu)</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="tb-actions">
-      <button id="btn-refresh" class="tb-btn primary" title="Refresh data">↻ Refresh</button>
-      <button id="btn-export-csv" class="tb-btn" title="Export CSV">📥 CSV</button>
-      <button id="btn-export-json" class="tb-btn" title="Export JSON">📥 JSON</button>
-      <a href="https://api.isp-monitor.my.id/admin" class="tb-btn" title="Admin Panel">⚙️</a>
-    </div>
-
-    <div class="tb-live"><span class="dot pulse"></span><span id="interval-hint">Ping dari perangkat kamu · tiap 10 dtk</span></div>
-  </div>
-
   <!-- Info: mode user-ping -->
   <div class="ping-info card">
     <div class="pi-head">ℹ️ Mode User-Ping</div>
