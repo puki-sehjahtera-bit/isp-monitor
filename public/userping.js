@@ -16,16 +16,22 @@ const PING_TIMEOUT = 4000;
 async function loadIsps() {
   const grid = document.getElementById("grid");
   grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px">Memuat daftar ISP…</div>';
+  uptime = {};
+  const upEl = document.getElementById("session-uptime");
+  const chkEl = document.getElementById("session-checks");
+  if (upEl) upEl.textContent = "100";
+  if (chkEl) chkEl.textContent = "0";
+  // Coba ambil dari file statis lokal (gak butuh server hidup)
+  try {
+    const res = await fetch("/isps.json");
+    if (res.ok) { isps = await res.json(); renderGrid(); startPingLoop(); return; }
+  } catch (_) {}
+  // Fallback ke API server (kalau server hidup)
   try {
     const res = await fetch(`${API_BASE}/isps`);
     isps = await res.json();
-    uptime = {};
-    const upEl = document.getElementById("session-uptime");
-    const chkEl = document.getElementById("session-checks");
-    if (upEl) upEl.textContent = "100";
-    if (chkEl) chkEl.textContent = "0";
   } catch (e) {
-    grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal memuat /isps. Cek koneksi API.</div>';
+    grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal muat ISP. Server mati.</div>';
     return;
   }
   renderGrid();
