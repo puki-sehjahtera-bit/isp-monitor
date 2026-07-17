@@ -32,11 +32,11 @@ body.light {
      var(--bg);
    color:var(--txt); min-height:100vh; overflow-x:hidden;
  }
- /* Logo watermark samar di kanan bawah */
+ /* Background blur dari logo di semua halaman */
  body::before {
-   content:""; position:fixed; right:-40px; bottom:-40px; z-index:0;
-   width:320px; height:320px; background:url("/logo.jpg") center/cover no-repeat;
-   opacity:.08; filter:blur(2px); pointer-events:none; border-radius:20px;
+   content:""; position:fixed; inset:0; z-index:0;
+   background:url("/logo.jpg") center/cover no-repeat;
+   opacity:.06; filter:blur(40px); transform:scale(1.1); pointer-events:none;
  }
 .bg-orbs { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .bg-orbs span { position:absolute; border-radius:50%; filter:blur(60px); opacity:.35; }
