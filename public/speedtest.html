@@ -4,20 +4,23 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#0a0e17" />
-<meta name="description" content="Speed Test dari perangkat kamu langsung. Ukur download, upload, dan ping real-time." />
+<meta name="description" content="Speed Test — ukur kecepatan internet dari perangkat kamu secara real-time." />
 <meta property="og:title" content="Speed Test — ISP Monitor" />
-<meta property="og:description" content="Uji kecepatan internet dari perangkat kamu secara real-time." />
-<link rel="stylesheet" href="/style.css?v=3" />
+<meta property="og:description" content="Ukur download, upload, dan ping dari perangkat kamu." />
+<link rel="stylesheet" href="/style.css" />
 <title>Speed Test — ISP Monitor</title>
 <style>
-body { min-height:100vh; }
-.speed-wrap { max-width:700px; margin:30px auto; padding:0 16px; }
-.speed-wrap h2 { font-size:20px; margin-bottom:6px; }
-.speed-wrap .sub { font-size:12px; color:var(--mut); margin-bottom:20px; }
-.speed-frame { width:100%; height:600px; border:none; border-radius:14px; overflow:hidden; background:rgba(0,0,0,.3); }
-.speed-note { font-size:11px; color:var(--mut); margin-top:12px; text-align:center; line-height:1.5; }
-.speed-note a { color:var(--acc); text-decoration:none; }
-@media (max-width:620px){ .speed-frame { height:480px; } }
+body { min-height:100vh; display:flex; flex-direction:column; }
+.st-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 16px 40px; }
+.st-head { text-align:center; margin-bottom:16px; }
+.st-head h2 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin:0; }
+.st-head .sub { font-size:13px; color:var(--mut); margin-top:4px; }
+.st-box { width:100%; max-width:780px; background:rgba(255,255,255,.02); border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 4px 30px rgba(0,0,0,.3); }
+.st-box iframe { display:block; width:100%; height:560px; border:none; }
+.st-foot { font-size:11px; color:var(--mut); text-align:center; margin-top:14px; max-width:500px; line-height:1.5; }
+.st-foot a { color:var(--acc); text-decoration:none; }
+.st-foot a:hover { text-decoration:underline; }
+@media (max-width:620px){ .st-box iframe { height:440px; } .st-head h2 { font-size:22px; } }
 </style>
 </head>
 <body>
@@ -25,36 +28,37 @@ body { min-height:100vh; }
 
 <header>
   <div class="brand">
-    <img src="/logo.jpg?v=1" alt="Logo" class="logo-img" />
-    <div>
-      <h1>ISP Monitor</h1>
-      <span class="sub">Speed Test · realtime</span>
-    </div>
+    <img src="/logo.jpg" alt="" class="logo-img" />
+    <div><h1>ISP Monitor</h1><span class="sub">Speed Test</span></div>
   </div>
   <div class="head-right">
-    <a href="/" class="pingboard-link" title="Kembali ke Dashboard">🏠 Dashboard</a>
-    <button id="theme-toggle" class="icon-btn" title="Light / Dark">🌓</button>
+    <a href="/" class="pingboard-link">🏠 Dashboard</a>
+    <a href="/pingboard" class="pingboard-link">⚡ Cek ISP</a>
+    <button id="theme-toggle" class="icon-btn">🌓</button>
   </div>
 </header>
 
-<div class="speed-wrap">
-  <h2>🚀 Speed Test</h2>
-  <p class="sub">Ukur kecepatan download, upload, dan latensi dari perangkat & jaringan kamu.</p>
-  <iframe class="speed-frame" src="https://openspeedtest.com/Get-widget.php" allow="geolocation; microphone; camera; autoplay" loading="lazy"></iframe>
-  <p class="speed-note">Hasil diukur langsung dari browser kamu ke server OpenSpeedTest.<br>Data gak disimpan — murni privat.</p>
+<div class="st-wrap">
+  <div class="st-head">
+    <h2>🚀 Speed Test</h2>
+    <p class="sub">Ukur download, upload, dan ping dari perangkat kamu.</p>
+  </div>
+  <div class="st-box">
+    <iframe src="https://openspeedtest.com/Get-widget.php?theme=dark" allow="geolocation; microphone; camera; autoplay" loading="lazy"></iframe>
+  </div>
+  <p class="st-foot">Hasil diukur langsung dari browser kamu. Data bersifat sementara dan tidak disimpan.</p>
 </div>
 
 <footer class="footer">
   <div class="footer-inner">
     <div class="foot-brand">
       <div class="foot-logo">◉</div>
-      <div><div class="foot-name">ISP Monitor</div><div class="foot-desc">Pemantauan Jaringan Real-Time &amp; Komunitas</div></div>
+      <div><div class="foot-name">ISP Monitor</div><div class="foot-desc">Pemantauan Jaringan Real-Time</div></div>
     </div>
   </div>
-  <div class="foot-copy">© 2026 Cah Panggul · Speed Test</div>
+  <div class="foot-copy">© 2026 Cah Panggul</div>
 </footer>
 
-<script defer src="/config.js"></script>
 <script>
 const toggle = document.getElementById("theme-toggle");
 if (toggle) toggle.addEventListener("click", () => {
