@@ -92,18 +92,6 @@ db.exec(`
   );
 `);
 
-// Migrasi kolom opsional (DB lama yang dibuat sebelum ada kolom ini).
-for (const [table, col, ddl] of [
-  ["isp_list", "category", "TEXT DEFAULT 'isp'"],
-  ["isp_list", "asn", "TEXT"],
-  ["isp_list", "real_ip", "TEXT"],
-  ["isp_list", "status_url", "TEXT"],
-  ["ping_reports", "kategori", "TEXT DEFAULT 'global'"],
-]) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
-  if (!cols.includes(col)) db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`).run();
-}
-
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -409,6 +397,23 @@ function getPingReports(limit = 200, kategori = null) {
   return db.prepare(
     "SELECT isp, city, ping, server_ping AS serverPing, saran, kategori, created_at FROM ping_reports ORDER BY id DESC LIMIT ?"
   ).all(limit);
+}
+
+// Migrasi kolom opsional (DB lama yang dibuat sebelum ada kolom ini).
+// Dipanggil SETELAH semua CREATE TABLE agar tabel sudah ada.
+for (const [table, col, ddl] of [
+  ["isp_list", "category", "TEXT DEFAULT 'isp'"],
+  ["isp_list", "asn", "TEXT"],
+  ["isp_list", "real_ip", "TEXT"],
+  ["isp_list", "status_url", "TEXT"],
+  ["ping_reports", "kategori", "TEXT DEFAULT 'global'"],
+]) {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
+    if (!cols.includes(col)) db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`).run();
+  } catch (e) {
+    // table belum ada di DB sangat lama -> skip
+  }
 }
 
 module.exports = {

@@ -20,6 +20,10 @@ async function loadIsps() {
     const res = await fetch(`${API_BASE}/isps`);
     isps = await res.json();
     uptime = {};
+    const upEl = document.getElementById("session-uptime");
+    const chkEl = document.getElementById("session-checks");
+    if (upEl) upEl.textContent = "100";
+    if (chkEl) chkEl.textContent = "0";
   } catch (e) {
     grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal memuat /isps. Cek koneksi API.</div>';
     return;
@@ -171,6 +175,14 @@ function updateSummary() {
     <div class="summary-card"><b>${ok}</b><span>Reachable (dari kamu)</span></div>
     <div class="summary-card"><b>${off}</b><span>Unreachable</span></div>
     <div class="summary-card"><b>${avg}</b><span>Latensi rata² (ms)</span></div>`;
+
+  // Uptime sesi global (akumulasi semua ping user)
+  let sOk = 0, sTot = 0;
+  Object.values(uptime).forEach((u) => { sOk += u.ok; sTot += u.total; });
+  const upEl = document.getElementById("session-uptime");
+  const chkEl = document.getElementById("session-checks");
+  if (upEl) upEl.textContent = sTot ? Math.round((sOk / sTot) * 100) : 100;
+  if (chkEl) chkEl.textContent = sTot;
 }
 
 // ── Controls ──

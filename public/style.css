@@ -173,6 +173,8 @@ header .sub { color:var(--mut); font-size:12px; }
 .ping-info .dot.bad { background:var(--fail); }
 .ping-info .pi-note { font-size:11px; color:var(--mut); margin:0; font-style:italic; }
 .isp-up { font-size:10px; color:var(--mut); margin-top:3px; }
+.session-bar { font-size:13px; padding:9px 14px; background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; margin-bottom:14px; }
+.session-bar b { color:var(--acc); }
 .ispcard.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 .ispcard.row-on { box-shadow: inset 3px 0 0 var(--ok); }
 .ic-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
