@@ -77,6 +77,22 @@ function renderTargets(targets) {
 
 // Render Laporan Pengunjung Lain (filter per kategori)
 let currentKat = "all";
+function fmtTime(ts) {
+  if (!ts) return "Baru saja";
+  const d = new Date(ts);
+  if (isNaN(d)) return "Baru saja";
+  const pad = (n) => String(n).padStart(2, "0");
+  const jam = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const now = Date.now();
+  const diff = Math.floor((now - d.getTime()) / 1000);
+  let rel = "";
+  if (diff < 60) rel = "baru saja";
+  else if (diff < 3600) rel = `${Math.floor(diff / 60)} mnt lalu`;
+  else if (diff < 86400) rel = `${Math.floor(diff / 3600)} jam lalu`;
+  else rel = `${Math.floor(diff / 86400)} hari lalu`;
+  return `${jam} WIB · ${rel}`;
+}
+
 function renderReports(reports) {
   const container = document.getElementById("user-reports-list");
   const filtered = (currentKat === "all" ? reports : reports.filter(r => r.kategori === currentKat));
@@ -87,12 +103,13 @@ function renderReports(reports) {
   container.innerHTML = filtered.slice().reverse().map(rep => {
     const server = rep.serverPing != null ? ` · server ${rep.serverPing}ms` : "";
     const saran = rep.saran ? `<p class="text-xs text-gray-400 mt-1 italic">"${rep.saran}"</p>` : "";
+    const waktu = fmtTime(rep.timestamp || rep.ts);
     return `<div class="p-2.5 bg-gray-950 rounded-lg border border-gray-850 text-sm">
       <div class="flex justify-between">
         <span class="font-bold text-gray-300">${rep.isp}</span>
         <span class="text-emerald-400 font-mono font-bold">${rep.ping}ms</span>
       </div>
-      <p class="text-xs text-gray-500">${rep.city} • Baru saja${server}</p>
+      <p class="text-xs text-gray-500">${rep.city} • ${waktu}${server}</p>
       ${saran}
     </div>`;
   }).join("");
