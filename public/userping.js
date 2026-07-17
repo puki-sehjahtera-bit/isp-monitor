@@ -27,16 +27,26 @@ async function loadIsps() {
 }
 
 // ── Ping satu target dari browser user ──
+// Pakai Cloudflare edge (1.1.1.1) sebagai baseline + target http_url ISP.
+// no-cors: kita gak baca body, cuma ukur RTT sampai response tiba.
 async function pingOne(isp) {
-  const target = isp.http_url || (isp.isp_ip ? `http://${isp.isp_ip}` : "");
-  if (!target) return { ok: false, ms: 0, err: "no-target" };
+  // Prioritas: isp_ip (kalau ada) -> http_url -> fallback Cloudflare edge
+  let target = isp.isp_ip ? `http://${isp.isp_ip}` : (isp.http_url || "");
+  if (!target) target = "https://1.1.1.1";
   const start = performance.now();
   try {
     await fetch(target, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
     return { ok: true, ms: Math.round(performance.now() - start) };
   } catch (e) {
-    // no-cors: gagal = timeout/DNS/blocked. Anggap unreachable dari user ini.
-    return { ok: false, ms: 0, err: e.name };
+    // gagal ke target ISP -> coba Cloudflare edge sebagai fallback reference
+    try {
+      const s2 = performance.now();
+      await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
+      // target ISP gagal, tapi internet user hidup -> unreachable ke target spesifik
+      return { ok: false, ms: Math.round(performance.now() - s2), err: e.name, ref: true };
+    } catch (e2) {
+      return { ok: false, ms: 0, err: e2.name };
+    }
   }
 }
 
@@ -105,11 +115,18 @@ function updateCard(id) {
     lat.textContent = `${r.ms} ms`;
     st.textContent = "🟢";
     st.className = "isp-status ok";
+  } else if (r.ref) {
+    lat.textContent = `↓ ${r.ms} ms`;
+    st.textContent = "🟡";
+    st.className = "isp-status";
+    st.style.color = "var(--warn, #e0a800)";
+    return;
   } else {
     lat.textContent = "—";
     st.textContent = "🔴";
     st.className = "isp-status bad";
   }
+  if (st) st.style.color = "";
   // flash kartu tiap update
   if (card) {
     card.classList.remove("flash");
