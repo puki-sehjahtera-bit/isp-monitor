@@ -50,20 +50,22 @@ if ('serviceWorker' in navigator) {
 </header>
 
 <div class="wrap">
-  <!-- Hero: kesehatan global -->
+  <!-- Hero: info user + status ping -->
   <section class="hero card">
     <div class="hero-left">
-      <div class="hero-badge ok" id="hero-badge">◉ ALL SYSTEMS OPERATIONAL</div>
-      <h2 class="hero-title">Kesehatan Jaringan Global</h2>
-      <p class="hero-sub" id="hero-sub">Memantau target secara realtime…</p>
-      <div class="hero-stats">
-        <div><b id="hero-online">–</b><span>Online</span></div>
-        <div><b id="hero-offline">–</b><span>Offline</span></div>
-        <div><b id="hero-avg">–</b><span>Latensi rata²</span></div>
+      <div class="hero-badge ok" id="hero-badge">◉ TERHUBUNG</div>
+      <h2 class="hero-title">Jaringan Kamu</h2>
+      <p class="hero-sub" id="hero-sub">Mendeteksi informasi jaringan…</p>
+      <div class="hero-stats" id="user-info">
+        <div><b id="h-isp">–</b><span>ISP</span></div>
+        <div><b id="h-ip">–</b><span>IP</span></div>
+        <div><b id="h-loc">–</b><span>Lokasi</span></div>
       </div>
     </div>
-    <div class="gauge" id="gauge">
-      <div class="gauge-inner"><span id="gauge-val">–</span><small>uptime</small></div>
+    <div class="hero-stats right" id="ping-summary">
+      <div><b id="h-reach">–</b><span>Reachable</span></div>
+      <div><b id="h-unreach">–</b><span>Unreachable</span></div>
+      <div><b id="h-avg-lat">–</b><span>Latensi rata²</span></div>
     </div>
   </section>
 

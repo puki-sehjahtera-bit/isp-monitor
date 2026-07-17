@@ -13,6 +13,31 @@ let uptime = {}; // id -> {ok, total}
 const PING_TIMEOUT = 4000;
 
 // ── Ambil list ISP dari API ──
+// ── Ambil info user (ISP, IP, lokasi) ──
+async function loadUserInfo() {
+  const ispEl = document.getElementById("h-isp");
+  const ipEl = document.getElementById("h-ip");
+  const locEl = document.getElementById("h-loc");
+  const subEl = document.getElementById("hero-sub");
+  if (!ispEl || !ipEl) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/isp-info`);
+    const info = await res.json();
+    ispEl.textContent = info.isp || "–";
+    ipEl.textContent = info.ip || "–";
+    locEl.textContent = [info.city, info.region].filter(Boolean).join(", ") || "–";
+    if (subEl) subEl.textContent = "Ping dari perangkat kamu ke target ISP tiap 10 dtk";
+    document.getElementById("hero-badge").textContent = "◉ TERHUBUNG";
+  } catch (_) {
+    ispEl.textContent = "–";
+    ipEl.textContent = "–";
+    locEl.textContent = "–";
+    if (subEl) subEl.textContent = "Gagal deteksi info jaringan (server mati)";
+    document.getElementById("hero-badge").textContent = "◉ OFFLINE";
+    document.getElementById("hero-badge").className = "hero-badge bad";
+  }
+}
+
 async function loadIsps() {
   const grid = document.getElementById("grid");
   grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px">Memuat daftar ISP…</div>';
@@ -24,7 +49,7 @@ async function loadIsps() {
   // Coba ambil dari file statis lokal (gak butuh server hidup)
   try {
     const res = await fetch("/isps.json");
-    if (res.ok) { isps = await res.json(); renderGrid(); startPingLoop(); return; }
+    if (res.ok) { isps = await res.json(); loadUserInfo(); renderGrid(); startPingLoop(); return; }
   } catch (_) {}
   // Fallback ke API server (kalau server hidup)
   try {
@@ -34,6 +59,7 @@ async function loadIsps() {
     grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal muat ISP. Server mati.</div>';
     return;
   }
+  loadUserInfo();
   renderGrid();
   startPingLoop();
 }
@@ -189,6 +215,14 @@ function updateSummary() {
   const chkEl = document.getElementById("session-checks");
   if (upEl) upEl.textContent = sTot ? Math.round((sOk / sTot) * 100) : 100;
   if (chkEl) chkEl.textContent = sTot;
+
+  // Hero ping summary
+  const hReach = document.getElementById("h-reach");
+  const hUnreach = document.getElementById("h-unreach");
+  const hAvg = document.getElementById("h-avg-lat");
+  if (hReach) hReach.textContent = ok;
+  if (hUnreach) hUnreach.textContent = off;
+  if (hAvg) hAvg.textContent = avg;
 }
 
 // ── Controls ──

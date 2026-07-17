@@ -172,6 +172,7 @@ app.get("/api/isp-info", async (req, res) => {
     const d = await r.json();
     if (d && d.connection) {
       return res.json({
+        ip: clientIp,
         isp: d.connection.isp || d.connection.org || "Unknown",
         city: d.city || "-",
         region: d.region || "",
