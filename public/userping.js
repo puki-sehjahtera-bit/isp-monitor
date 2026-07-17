@@ -52,6 +52,7 @@ async function startPingLoop() {
       updateCard(isp.id);
     }
     updateSummary();
+    pulseLive();
     await new Promise((res) => setTimeout(res, 10000)); // interval 10 dtk
   }
 }
@@ -88,6 +89,7 @@ function cardHtml(isp) {
     <div class="isp-meta">${[isp.country, isp.region, isp.category].filter(Boolean).join(" · ")}</div>
     <div class="isp-lat" id="lat-${isp.id}">…</div>
     <div class="isp-status" id="st-${isp.id}">⏳</div>
+    <div class="isp-lp" id="lp-${isp.id}">ping …</div>
   </div>`;
 }
 
@@ -96,6 +98,7 @@ function updateCard(id) {
   const r = userLatency[id];
   const lat = document.getElementById(`lat-${id}`);
   const st = document.getElementById(`st-${id}`);
+  const card = document.getElementById(`card-${id}`);
   if (!lat || !st || !isp) return;
   if (!r) { lat.textContent = "…"; st.textContent = "⏳"; return; }
   if (r.ok) {
@@ -107,6 +110,22 @@ function updateCard(id) {
     st.textContent = "🔴";
     st.className = "isp-status bad";
   }
+  // flash kartu tiap update
+  if (card) {
+    card.classList.remove("flash");
+    void card.offsetWidth; // reflow biar animasi restart
+    card.classList.add("flash");
+  }
+  // last-ping timestamp
+  const lp = document.getElementById(`lp-${id}`);
+  if (lp) lp.textContent = "ping " + timeAgo(r.ts);
+}
+
+function timeAgo(ts) {
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 5) return "baru saja";
+  if (s < 60) return s + " dtk lalu";
+  return Math.round(s / 60) + " mnt lalu";
 }
 
 // ── Summary ──
@@ -148,6 +167,14 @@ function bindControls() {
     if (cf) cats.forEach((c) => cf.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
     if (rf) regs.forEach((r) => rf.insertAdjacentHTML("beforeend", `<option value="${r}">${r}</option>`));
   }, 500);
+}
+
+// ── Live dot berkedip tiap loop ──
+function pulseLive() {
+  const dot = document.getElementById("live-dot");
+  const txt = document.getElementById("live-txt");
+  if (dot) { dot.classList.remove("pulse"); void dot.offsetWidth; dot.classList.add("pulse"); }
+  if (txt) txt.textContent = "LIVE · user-ping";
 }
 
 // ── Init ──

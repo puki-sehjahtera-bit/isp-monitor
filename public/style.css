@@ -155,6 +155,12 @@ header .sub { color:var(--mut); font-size:12px; }
 .isp-status { font-size:13px; margin-top:2px; }
 .isp-status.ok { color:var(--ok); }
 .isp-status.bad { color:var(--fail); }
+.isp-lp { font-size:10px; color:var(--mut); margin-top:4px; }
+.ispcard.flash { animation: cardFlash .6s ease; }
+@keyframes cardFlash {
+  0% { box-shadow: inset 0 0 0 2px var(--acc); }
+  100% { box-shadow: inset 3px 0 0 transparent; }
+}
 .ispcard.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 .ispcard.row-on { box-shadow: inset 3px 0 0 var(--ok); }
 .ic-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
