@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "dev": "node src/server.js",
     "test": "node --test",
-    "deploy:pages": "wrangler pages deploy public --project-name isp-monitor-frontend"
+    "deploy:pages": "wrangler pages deploy public --project-name isp-monitor"
   },
   "engines": {
     "node": ">=18"

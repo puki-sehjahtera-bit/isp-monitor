@@ -1,4 +1,4 @@
-name = "isp-monitor-frontend"
+name = "isp-monitor"
 pages_build_output_dir = "public"
 compatibility_date = "2024-09-23"
 
