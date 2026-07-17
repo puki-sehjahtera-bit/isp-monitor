@@ -161,7 +161,18 @@ header .sub { color:var(--mut); font-size:12px; }
   0% { box-shadow: inset 0 0 0 2px var(--acc); }
   100% { box-shadow: inset 3px 0 0 transparent; }
 }
-.ping-info { font-size:13px; line-height:1.5; margin-bottom:14px; padding:12px 14px; }
+.ping-info { font-size:13px; line-height:1.5; margin-bottom:14px; padding:14px 16px; border-left:3px solid var(--acc); }
+.ping-info .pi-head { font-size:14px; font-weight:700; margin-bottom:6px; letter-spacing:.3px; }
+.ping-info .pi-desc { margin:0 0 10px; color:var(--mut); }
+.ping-info .pi-desc b { color:var(--txt); }
+.ping-info .pi-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:12px; margin-bottom:8px; }
+.ping-info .pi-legend span { display:inline-flex; align-items:center; gap:6px; }
+.ping-info .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.ping-info .dot.ok { background:var(--ok); }
+.ping-info .dot.warn { background:#e0a800; }
+.ping-info .dot.bad { background:var(--fail); }
+.ping-info .pi-note { font-size:11px; color:var(--mut); margin:0; font-style:italic; }
+.isp-up { font-size:10px; color:var(--mut); margin-top:3px; }
 .ispcard.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 .ispcard.row-on { box-shadow: inset 3px 0 0 var(--ok); }
 .ic-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }

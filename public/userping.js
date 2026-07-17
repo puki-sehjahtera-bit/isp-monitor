@@ -9,6 +9,7 @@ const WS_URL = (window.CONFIG && window.CONFIG.WS_URL) || undefined;
 let isps = [];
 let sortKey = "id", searchQuery = "", catFilter = "", regionFilter = "", scope = "all";
 let userLatency = {}; // id -> {ms, ok, ts}
+let uptime = {}; // id -> {ok, total}
 const PING_TIMEOUT = 4000;
 
 // ── Ambil list ISP dari API ──
@@ -18,6 +19,7 @@ async function loadIsps() {
   try {
     const res = await fetch(`${API_BASE}/isps`);
     isps = await res.json();
+    uptime = {};
   } catch (e) {
     grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal memuat /isps. Cek koneksi API.</div>';
     return;
@@ -59,6 +61,10 @@ async function startPingLoop() {
     for (const isp of filtered()) {
       const r = await pingOne(isp);
       userLatency[isp.id] = { ...r, ts: Date.now() };
+      const u = uptime[isp.id] || { ok: 0, total: 0 };
+      u.total++;
+      if (r.ok) u.ok++;
+      uptime[isp.id] = u;
       updateCard(isp.id);
     }
     updateSummary();
@@ -100,6 +106,7 @@ function cardHtml(isp) {
     <div class="isp-lat" id="lat-${isp.id}">…</div>
     <div class="isp-status" id="st-${isp.id}">⏳</div>
     <div class="isp-lp" id="lp-${isp.id}">ping …</div>
+    <div class="isp-up" id="up-${isp.id}">uptime –</div>
   </div>`;
 }
 
@@ -136,6 +143,13 @@ function updateCard(id) {
   // last-ping timestamp
   const lp = document.getElementById(`lp-${id}`);
   if (lp) lp.textContent = "ping " + timeAgo(r.ts);
+  // uptime lokal (sejak page dibuka)
+  const up = document.getElementById(`up-${id}`);
+  const u = uptime[id];
+  if (up && u && u.total > 0) {
+    const pct = Math.round((u.ok / u.total) * 100);
+    up.textContent = `uptime ${pct}% (${u.ok}/${u.total})`;
+  }
 }
 
 function timeAgo(ts) {
