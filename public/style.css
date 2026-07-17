@@ -149,6 +149,12 @@ header .sub { color:var(--mut); font-size:12px; }
   background:rgba(255,255,255,.02); transition:transform .15s, border-color .15s, background .15s;
 }
 .ispcard:hover { border-color:var(--acc); transform:translateY(-2px); background:rgba(88,166,255,.05); }
+.isp-name { font-size:15px; font-weight:700; line-height:1.3; }
+.isp-meta { font-size:11px; color:var(--mut); margin-top:2px; }
+.isp-lat { font-size:22px; font-weight:800; margin-top:10px; }
+.isp-status { font-size:13px; margin-top:2px; }
+.isp-status.ok { color:var(--ok); }
+.isp-status.bad { color:var(--fail); }
 .ispcard.row-off { box-shadow: inset 3px 0 0 var(--fail); }
 .ispcard.row-on { box-shadow: inset 3px 0 0 var(--ok); }
 .ic-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
