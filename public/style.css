@@ -26,11 +26,12 @@ body.light {
 }
 * { box-sizing: border-box; }
 body {
-  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  margin:0; font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   background:
     radial-gradient(1100px 520px at 85% -12%, #14213a 0%, var(--bg) 55%),
     var(--bg);
   color:var(--txt); min-height:100vh; overflow-x:hidden; -webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv11","ss01"; text-rendering:optimizeLegibility;
 }
 body::before {
   content:""; position:fixed; inset:0; z-index:0;
@@ -44,7 +45,7 @@ body::before {
 .bg-orbs span:nth-child(3){ width:260px;height:260px;background:#22c55e;top:40%;right:-40px; animation:float 16s ease-in-out infinite; }
 @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(40px)} }
 
-.wrap { position:relative; z-index:1; padding:22px 24px 50px; max-width:1080px; margin:0 auto; }
+.wrap { position:relative; z-index:1; padding:32px 28px 56px; max-width:1100px; margin:0 auto; }
 
 header {
   position:sticky; top:0; z-index:40; display:flex; align-items:center; justify-content:space-between;
@@ -69,8 +70,8 @@ header .sub { color:var(--mut); font-size:12px; }
 .icon-btn:hover { border-color:var(--acc); }
 
 .card {
-  background:var(--card); border:1px solid var(--line); border-radius:14px;
-  padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);
+  background:var(--card); border:1px solid var(--line); border-radius:16px;
+  padding:22px 24px; margin-bottom:18px; box-shadow:var(--shadow);
 }
 .card h2 { margin:0 0 14px; font-size:12px; color:var(--mut); font-weight:600; text-transform:uppercase; letter-spacing:.7px; }
 
@@ -94,9 +95,9 @@ header .sub { color:var(--mut); font-size:12px; }
 .sb-count.up b { color:var(--ok); } .sb-count.down b { color:var(--fail); }
 
 /* ── Stat tiles ── */
-.summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:14px; }
+.summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:18px; }
 .scard {
-  background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px 14px 44px;
+  background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px 16px 46px;
   position:relative; overflow:hidden; box-shadow:var(--shadow);
 }
 .scard::after { content:""; position:absolute; right:-20px; top:-20px; width:70px;height:70px; border-radius:50%; opacity:.16; background:var(--accent,var(--acc)); filter:blur(8px); }
@@ -106,7 +107,7 @@ header .sub { color:var(--mut); font-size:12px; }
 .scard .sub2 { font-size:12px; color:var(--mut); margin-top:6px; }
 
 /* ── Hero (your connection) ── */
-.hero { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; overflow:hidden; padding:16px 20px;
+.hero { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; overflow:hidden; padding:22px 26px;
   background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(99,102,241,.10)), var(--card); }
 .hero-left { flex:1; min-width:260px; }
 .hero-badge { display:inline-block; font-size:11px; font-weight:800; letter-spacing:.8px; padding:5px 12px; border-radius:999px; margin-bottom:12px; }
@@ -146,28 +147,28 @@ header .sub { color:var(--mut); font-size:12px; }
 .rdot.on{background:var(--ok);} .rdot.off{background:var(--fail);} .rdot.part{background:var(--warn);}
 
 /* ── Monitor list ── */
-.grid { display:flex; flex-direction:column; gap:10px; }
+.grid { display:flex; flex-direction:column; gap:12px; }
 .ispcard {
-  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  border:1px solid var(--line); border-radius:12px; padding:14px 16px;
-  background:var(--card); transition:border-color .15s, background .15s;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  border:1px solid var(--line); border-left:3px solid var(--line); border-radius:14px; padding:16px 20px;
+  background:var(--card); transition:border-color .2s ease, background .2s ease, border-left-color .3s ease;
 }
 .ispcard:hover { border-color:var(--acc); }
-.ispcard.row-off { box-shadow: inset 3px 0 0 var(--fail); }
-.ispcard.row-on { box-shadow: inset 3px 0 0 var(--ok); }
+.ispcard.row-off { border-left-color:var(--fail); }
+.ispcard.row-on { border-left-color:var(--ok); }
 .ic-head { display:flex; align-items:center; gap:12px; flex:1 1 240px; min-width:220px; }
 .sdot { width:10px;height:10px;border-radius:50%; flex:none; background:var(--mut); transition:.2s; }
 .sdot.ok { background:var(--ok); box-shadow:0 0 0 3px rgba(34,197,94,.18); }
 .sdot.bad { background:var(--fail); box-shadow:0 0 0 3px rgba(239,68,68,.18); }
 .ic-id { min-width:0; }
 .ic-name { font-size:15px; font-weight:700; line-height:1.3; }
-.ic-sub { font-size:11px; color:var(--mut); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ic-metrics { display:flex; gap:22px; flex-wrap:wrap; }
-.ic-metrics .m { text-align:left; }
-.ic-metrics .m span { display:block; font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
-.ic-metrics .m b { font-size:15px; font-weight:700; }
-.ic-metrics .m b .bar { margin-top:5px; height:5px; }
-.spark { width:120px; height:34px; flex:none; }
+.ic-sub { font-size:11px; color:var(--mut); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ic-metrics { display:flex; gap:26px; flex-wrap:wrap; }
+.ic-metrics .m { text-align:left; font-variant-numeric:tabular-nums; }
+.ic-metrics .m span { display:block; font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+.ic-metrics .m b { font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; transition:color .25s ease; }
+.ic-metrics .m b .bar { margin-top:6px; height:5px; }
+.spark { width:130px; height:38px; flex:none; }
 .ic-reg { flex:1 1 100%; margin-top:2px; min-height:0; }
 .ic-actions { display:flex; gap:6px; align-items:center; flex:none; }
 .vbadge { font-size:13px; min-width:16px; text-align:center; }
