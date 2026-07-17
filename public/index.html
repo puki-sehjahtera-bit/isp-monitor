@@ -50,6 +50,19 @@ if ('serviceWorker' in navigator) {
 </header>
 
 <div class="wrap">
+  <!-- Banner status keseluruhan (gaya Checkmate) -->
+  <section class="status-banner" id="status-banner">
+    <span class="sb-dot" id="sb-dot"></span>
+    <div class="sb-text">
+      <div class="sb-title" id="sb-title">Memeriksa status…</div>
+      <div class="sb-sub" id="sb-sub"></div>
+    </div>
+    <div class="sb-counts">
+      <span class="sb-count up"><b id="sb-up">–</b> Operational</span>
+      <span class="sb-count down"><b id="sb-down">–</b> Down</span>
+    </div>
+  </section>
+
   <!-- Hero: info user + status ping -->
   <section class="hero card">
     <div class="hero-left">
@@ -103,6 +116,7 @@ if ('serviceWorker' in navigator) {
 
   <!-- Grid kartu ISP -->
   <section class="card">
+    <h2>Monitors</h2>
     <div class="tabs">
       <button class="tab active" data-scope="all">Semua</button>
       <button class="tab" data-scope="local">🇮🇩 Lokal</button>

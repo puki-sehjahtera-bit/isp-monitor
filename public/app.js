@@ -292,6 +292,7 @@ async function loadDashboard() {
     renderHero();
     renderRegionGroups();
     renderTable();
+    renderStatusBanner();
   } catch (e) {
     console.error("dashboard gagal:", e);
     const grid = $("#grid");
@@ -346,6 +347,21 @@ function renderSummary(stats) {
   $("#summary").innerHTML = cards.map((c) =>
     `<div class="scard" style="--accent:${c.accent}"><span class="ic">${c.ic}</span><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`
   ).join("");
+}
+
+// ── Banner status keseluruhan (gaya Checkmate) ──
+function renderStatusBanner() {
+  const all = Object.values(store);
+  if (!all.length) return;
+  const on = all.filter(isOnline).length;
+  const off = all.length - on;
+  const dot = $("#sb-dot"), title = $("#sb-title"), sub = $("#sb-sub");
+  const up = $("#sb-up"), down = $("#sb-down");
+  if (off === 0) { dot.className = "sb-dot ok"; title.textContent = "All systems operational"; }
+  else if (on === 0) { dot.className = "sb-dot bad"; title.textContent = "Major outage detected"; }
+  else { dot.className = "sb-dot warn"; title.textContent = "Degraded performance"; }
+  sub.textContent = `${all.length} monitors · ${new Set(all.map((s) => s.country)).size} countries`;
+  up.textContent = on; down.textContent = off;
 }
 
 // ── Region groups ──
@@ -411,18 +427,20 @@ function cardEl(s) {
   const cat = s.category || "isp";
   div.className = "ispcard";
   div.innerHTML = `
-    <div class="ic-top">
-      <div class="ic-name"><b>${s.name}</b> <span class="tag tag-${cat}">${CAT_LABEL[cat] || cat}</span>${s.asn ? ` <span class="asn">AS${s.asn}</span>` : ""}</div>
-      <div class="ic-loc">${FLAGS[s.country] || ""} ${s.country}${s.region && s.region !== "Global" ? " · " + s.region : ""}</div>
+    <div class="ic-head">
+      <span class="sdot" id="sdot-${s.id}"></span>
+      <div class="ic-id">
+        <div class="ic-name"><b>${s.name}</b> <span class="tag tag-${cat}">${CAT_LABEL[cat] || cat}</span>${s.asn ? ` <span class="asn">AS${s.asn}</span>` : ""}</div>
+        <div class="ic-sub">${FLAGS[s.country] || ""} ${s.country}${s.region && s.region !== "Global" ? " · " + s.region : ""} · ↳ ${pingTarget(s)}</div>
+      </div>
     </div>
-    <div class="ic-target">↳ ${pingTarget(s)}</div>
     <div class="ic-metrics">
+      <div class="m"><span>Uptime</span><b id="up-${s.id}">–</b></div>
+      <div class="m"><span>Latency</span><b id="comb-${s.id}">–</b></div>
       <div class="m"><span>Ping</span><b id="ping-${s.id}">–</b></div>
       <div class="m"><span>HTTP</span><b id="http-${s.id}">–</b></div>
-      <div class="m"><span>Status</span><b id="comb-${s.id}">–</b></div>
-      <div class="m"><span>Uptime</span><b id="up-${s.id}">–</b></div>
     </div>
-    <canvas class="spark" id="spark-${s.id}" width="240" height="26"></canvas>
+    <canvas class="spark" id="spark-${s.id}" width="140" height="34"></canvas>
     <div id="reg-${s.id}" class="regions-cell ic-reg"></div>
     <div class="ic-actions">
       <button class="mini" onclick="manual(${s.id})">Cek</button>
@@ -464,6 +482,8 @@ function updateRow(id) {
   const ping = s.latest?.ping, http = s.latest?.http, comb = s.latest?.combined;
   const card = $(`#card-${id}`);
   if (card) { card.classList.toggle("row-off", !(comb?.ok)); card.classList.toggle("row-on", !!comb?.ok); }
+  const dot = $(`#sdot-${id}`);
+  if (dot) dot.className = "sdot " + (comb?.ok ? "ok" : "bad");
   const set = (sel, html) => { const e = $(sel); if (e) e.innerHTML = html; };
   set(`#ping-${id}`, ping?.ok !== undefined ? `${ping.ok ? "✅" : "❌"} ${fmt(ping.latency)}` : "–");
   set(`#http-${id}`, http?.ok !== undefined ? `${http.ok ? "✅" : "❌"} ${fmt(http.latency)}` : "–");
