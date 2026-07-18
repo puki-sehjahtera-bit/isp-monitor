@@ -8,8 +8,16 @@
   * { box-sizing: border-box; margin: 0; }
   body {
     font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-    background: #0a0e17; color: #e6edf3;
+    background-color: #0b0f19;
+    background-image: url("/logo.jpg?v=1");
+    background-size: cover; background-position: center; background-attachment: fixed;
+    color: #e6edf3;
     min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1;
+    background: rgba(11,15,25,0.82); backdrop-filter: blur(6px); pointer-events: none;
   }
   .wrap { text-align: center; padding: 30px; }
   .code { font-size: 72px; font-weight: 800; background: linear-gradient(135deg,#58a6ff,#a371f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
