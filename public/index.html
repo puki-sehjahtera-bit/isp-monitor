@@ -102,10 +102,11 @@ if ('serviceWorker' in navigator) {
     <p class="pi-note">Angka = RTT HTTPS dari browser ke tujuan (bukan ICMP). Uptime dihitung sejak halaman dibuka. Server mati pun halaman ini tetap jalan.</p>
   </div>
 
-  <!-- Grup region / peta -->
+  <!-- Baseline jaringan user: ping ke DNS publik -->
   <section class="card">
-    <h2>Sebaran Region</h2>
-    <div class="regions" id="region-groups"></div>
+    <h2>Baseline Jaringan — Ping User ke DNS</h2>
+    <p class="pi-note">Latensi diukur langsung dari perangkat &amp; jaringan kamu ke resolver DNS publik (bukan dari server). Refresh otomatis tiap 10 dtk.</p>
+    <div class="regions" id="dns-baseline"></div>
   </section>
 
   <!-- Grafik global -->

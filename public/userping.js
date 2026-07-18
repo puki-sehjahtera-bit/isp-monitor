@@ -88,6 +88,45 @@ async function pingOne(isp) {
   }
 }
 
+// ── Baseline DNS: ping user ke resolver publik (1.1.1.1 / 8.8.8.8) ──
+const DNS_TARGETS = [
+  { id: "cf", name: "Cloudflare", ip: "1.1.1.1", host: "https://1.1.1.1" },
+  { id: "google", name: "Google", ip: "8.8.8.8", host: "https://8.8.8.8" },
+];
+const dnsLatency = {}; // id -> {ms, ok, ts}
+
+async function pingDnsOnce(t) {
+  const start = performance.now();
+  try {
+    await fetch(t.host, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
+    return { ok: true, ms: Math.round(performance.now() - start) };
+  } catch (_) {
+    return { ok: false, ms: 0 };
+  }
+}
+
+async function pingDns() {
+  await Promise.all(DNS_TARGETS.map(async (t) => {
+    dnsLatency[t.id] = { ...(await pingDnsOnce(t)), ts: Date.now() };
+  }));
+  renderDnsBaseline();
+}
+
+function renderDnsBaseline() {
+  const el = document.getElementById("dns-baseline");
+  if (!el) return;
+  el.innerHTML = DNS_TARGETS.map((t) => {
+    const r = dnsLatency[t.id];
+    const state = !r ? "part" : r.ok ? "on" : "off";
+    const lat = r ? (r.ok ? `${r.ms} ms` : "timeout") : "…";
+    return `<div class="rcard">
+      <div class="flag">🌐</div>
+      <div class="cname">${t.name} <span style="color:var(--mut);font-weight:500">${t.ip}</span></div>
+      <div class="cstat"><span class="rdot ${state}"></span>${lat}</div>
+    </div>`;
+  }).join("");
+}
+
 // ── Loop ping semua (user-side) ──
 let pinging = false;
 async function startPingLoop() {
@@ -105,6 +144,7 @@ async function startPingLoop() {
     }
     updateSummary();
     pulseLive();
+    await pingDns();
     await new Promise((res) => setTimeout(res, 10000)); // interval 10 dtk
   }
 }
@@ -264,6 +304,7 @@ function pulseLive() {
 document.addEventListener("DOMContentLoaded", () => {
   bindControls();
   loadIsps();
+  pingDns();
   // live dot
   const dot = document.getElementById("live-dot");
   if (dot) { dot.classList.add("pulse"); }
