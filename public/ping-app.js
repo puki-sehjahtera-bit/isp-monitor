@@ -31,29 +31,55 @@ async function pollReports() {
 pollReports();
 setInterval(pollReports, 8000);
 
-// Status Server Global (monitor otomatis) -> ambil dari /api/dashboard
-async function pollTargets() {
+// Monitor dari browser user (user-side), bukan server cron
+const TARGET_TIMEOUT = 4000;
+let userTargets = [];
+let targetResults = {};
+
+async function loadUserTargets() {
   try {
-    const r = await fetch(`${API_BASE}/api/dashboard`, { cache: "no-store" });
-    const list = await r.json();
-    const targets = (Array.isArray(list) ? list : [])
-      .filter((isp) => isp.country && isp.country !== "ID")
-      .map((isp) => {
-      const st = (isp.recent_status && isp.recent_status[0]) || {};
-      const up = !!st.status;
-      const ping = st.latency_ms != null ? Math.round(st.latency_ms) : null;
-      return {
-        name: isp.name,
-        ip: isp.isp_ip || isp.real_ip || "-",
-        ping,
-        status: up ? "ONLINE" : "OFFLINE",
-      };
-    });
-    renderTargets(targets);
-  } catch (e) { console.warn("gagal poll targets:", e.message); }
+    const r = await fetch("/isps.json");
+    if (r.ok) { userTargets = (await r.json()).filter((i) => i.country && i.country !== "ID"); return; }
+  } catch (_) {}
+  try {
+    const r = await fetch(`${API_BASE}/isps`);
+    userTargets = (await r.json()).filter((i) => i.country && i.country !== "ID");
+  } catch (_) { userTargets = []; }
 }
-pollTargets();
-setInterval(pollTargets, 30000);
+
+async function pingTargetUser(isp) {
+  let target = isp.isp_ip ? `http://${isp.isp_ip}` : (isp.http_url || "");
+  if (!target) target = "https://1.1.1.1";
+  const start = performance.now();
+  try {
+    await fetch(target, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
+    return { ok: true, ms: Math.round(performance.now() - start) };
+  } catch (_) {
+    try {
+      const s2 = performance.now();
+      await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
+      return { ok: false, ms: Math.round(performance.now() - s2), ref: true };
+    } catch (__) { return { ok: false, ms: 0 }; }
+  }
+}
+
+async function runUserTargets() {
+  if (!userTargets.length) await loadUserTargets();
+  await Promise.all(userTargets.map(async (isp) => {
+    targetResults[isp.id] = await pingTargetUser(isp);
+  }));
+  renderTargets(userTargets.map((isp) => {
+    const r = targetResults[isp.id] || {};
+    return {
+      name: isp.name,
+      ip: isp.isp_ip || isp.real_ip || "-",
+      ping: r.ok ? r.ms : (r.ref ? r.ms : null),
+      status: r.ok ? "ONLINE" : "OFFLINE",
+    };
+  }));
+}
+runUserTargets();
+setInterval(runUserTargets, 10000);
 
 // Hapus semua laporan (butuh token admin)
 async function clearReports() {
