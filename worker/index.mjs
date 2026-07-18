@@ -215,16 +215,13 @@ function fetch(req, env, ctx) {
       ] }));
 
       if (p === "/api/isp-info") {
-        const clientIp = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "";
-        try {
-          const ctrl = new AbortController();
-          const to = setTimeout(() => ctrl.abort(), 4000);
-          const r = await fetch(clientIp ? `https://ipwho.is/${clientIp}` : "https://ipwho.is/", { signal: ctrl.signal });
-          clearTimeout(to);
-          const d = await r.json();
-          if (d && d.connection) return resolve(json({ ip: clientIp, isp: d.connection.isp || d.connection.org || "Unknown", city: d.city || "-", region: d.region || "" }));
-        } catch {}
-        return resolve(json({ isp: "Unknown", city: "-", region: "" }));
+        const cf = req.cf || {};
+        const xff = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+        const ip = xff || req.headers.get("cf-connecting-ip") || "";
+        const isp = cf.asOrganization || (cf.asn ? "AS" + cf.asn : "Unknown");
+        const city = cf.city || "-";
+        const region = cf.region || cf.regionCode || "";
+        return resolve(json({ ip, isp, city, region }));
       }
       if (p === "/api/probe") return resolve(json({ t: Date.now() }));
 
