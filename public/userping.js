@@ -88,12 +88,13 @@ async function pingOne(isp) {
   }
 }
 
-// ── Baseline DNS: ping user ke resolver publik (1.1.1.1 / 8.8.8.8) ──
+// ── Baseline DNS: trafik realtime user -> resolver publik (1.1.1.1 / 8.8.8.8) ──
 const DNS_TARGETS = [
   { id: "cf", name: "Cloudflare", ip: "1.1.1.1", host: "https://1.1.1.1" },
   { id: "google", name: "Google", ip: "8.8.8.8", host: "https://8.8.8.8" },
 ];
-const dnsLatency = {}; // id -> {ms, ok, ts}
+const dnsState = {};
+DNS_TARGETS.forEach((t) => { dnsState[t.id] = { ok: null, ms: null, packets: [], history: [], lastSpawn: 0 }; });
 
 async function pingDnsOnce(t) {
   const start = performance.now();
@@ -107,24 +108,101 @@ async function pingDnsOnce(t) {
 
 async function pingDns() {
   await Promise.all(DNS_TARGETS.map(async (t) => {
-    dnsLatency[t.id] = { ...(await pingDnsOnce(t)), ts: Date.now() };
+    const r = await pingDnsOnce(t);
+    const st = dnsState[t.id];
+    st.ok = r.ok; st.ms = r.ms;
+    st.history.push(r.ok ? r.ms : null);
+    if (st.history.length > 60) st.history.shift();
   }));
-  renderDnsBaseline();
+  updateDnsLabels();
 }
 
-function renderDnsBaseline() {
+function buildDnsBaseline() {
   const el = document.getElementById("dns-baseline");
   if (!el) return;
-  el.innerHTML = DNS_TARGETS.map((t) => {
-    const r = dnsLatency[t.id];
-    const state = !r ? "part" : r.ok ? "on" : "off";
-    const lat = r ? (r.ok ? `${r.ms} ms` : "timeout") : "…";
-    return `<div class="rcard">
-      <div class="flag">🌐</div>
-      <div class="cname">${t.name} <span style="color:var(--mut);font-weight:500">${t.ip}</span></div>
-      <div class="cstat"><span class="rdot ${state}"></span>${lat}</div>
-    </div>`;
-  }).join("");
+  el.innerHTML = DNS_TARGETS.map((t) => `
+    <div class="dns-row" id="dns-${t.id}">
+      <div class="dns-head">
+        <span class="dns-name">${t.name} <i>${t.ip}</i></span>
+        <span class="dns-lat" id="dns-lat-${t.id}">…</span>
+      </div>
+      <canvas class="dns-canvas" id="dns-cv-${t.id}" height="70"></canvas>
+    </div>`).join("");
+  updateDnsLabels();
+}
+
+function updateDnsLabels() {
+  for (const t of DNS_TARGETS) {
+    const st = dnsState[t.id];
+    const el = document.getElementById(`dns-lat-${t.id}`);
+    if (!el) continue;
+    el.textContent = st.ok === null ? "…" : st.ok ? `${st.ms} ms` : "TIMEOUT";
+    el.className = "dns-lat " + (st.ok === null ? "" : st.ok ? "ok" : "bad");
+  }
+}
+
+// Animasi trafik realtime: paket mengalir YOU <-> DNS (request/response)
+let _dnsLast = 0;
+function animateDns(ts) {
+  const dt = _dnsLast ? ts - _dnsLast : 16;
+  _dnsLast = ts;
+  for (const t of DNS_TARGETS) {
+    const st = dnsState[t.id];
+    const cv = document.getElementById(`dns-cv-${t.id}`);
+    if (!cv) continue;
+    const ctx = cv.getContext("2d");
+    const w = cv.clientWidth || (cv.parentElement && cv.parentElement.clientWidth) || 300;
+    const h = cv.height;
+    if (cv.width !== w) cv.width = w;
+    // spawn paket: latensi rendah -> lebih cepat & rapat
+    const rate = st.ok === false ? 0 : Math.min(9, 1200 / Math.max(st.ms || 80, 20));
+    if (st.ok !== false && ts - st.lastSpawn > 1000 / rate) {
+      st.lastSpawn = ts;
+      st.packets.push({ born: ts, dur: Math.max(260, Math.min(2600, (st.ms || 80) * 4)), jitter: Math.random() * 14 - 7 });
+    }
+    for (const pk of st.packets) pk.p = (ts - pk.born) / pk.dur;
+    st.packets = st.packets.filter((pk) => pk.p < 1.05);
+    drawDns(ctx, w, h, st, t);
+  }
+  requestAnimationFrame(animateDns);
+}
+
+function drawDns(ctx, w, h, st, t) {
+  ctx.clearRect(0, 0, w, h);
+  const y = h * 0.40, x0 = 26, x1 = w - 26;
+  const ok = st.ok !== false;
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+  ctx.fillStyle = "#58a6ff";
+  ctx.beginPath(); ctx.arc(x0, y, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = "#8b949e"; ctx.font = "10px Inter, sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("YOU", x0, y + 20);
+  ctx.fillStyle = ok ? "#3fb950" : "#f85149";
+  ctx.beginPath(); ctx.arc(x1, y, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = "#8b949e"; ctx.fillText(t.ip, x1, y + 20);
+  for (const pk of st.packets) {
+    const px = x0 + (x1 - x0) * Math.min(pk.p, 1);
+    const py = y + (pk.jitter || 0) * Math.sin(pk.p * Math.PI);
+    const g = ctx.createRadialGradient(px, py, 0, px, py, 6);
+    g.addColorStop(0, ok ? "rgba(63,185,80,0.95)" : "rgba(248,81,73,0.9)");
+    g.addColorStop(1, "rgba(63,185,80,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill();
+  }
+  const hs = st.history;
+  if (hs.length > 1) {
+    const baseY = h - 8, max = Math.max(...hs.filter((v) => v).concat(200));
+    ctx.strokeStyle = "rgba(88,166,255,0.55)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    let first = true;
+    hs.forEach((v, i) => {
+      const x = (w / (hs.length - 1)) * i;
+      const yy = v ? baseY - (v / max) * 16 : baseY;
+      if (first) { ctx.moveTo(x, yy); first = false; } else ctx.lineTo(x, yy);
+    });
+    ctx.stroke();
+  }
 }
 
 // ── Loop ping semua (user-side) ──
@@ -304,7 +382,9 @@ function pulseLive() {
 document.addEventListener("DOMContentLoaded", () => {
   bindControls();
   loadIsps();
+  buildDnsBaseline();
   pingDns();
+  requestAnimationFrame(animateDns);
   // live dot
   const dot = document.getElementById("live-dot");
   if (dot) { dot.classList.add("pulse"); }

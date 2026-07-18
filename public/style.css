@@ -146,6 +146,16 @@ header .sub { color:var(--mut); font-size:12px; }
 .rdot { display:inline-block; width:8px;height:8px;border-radius:50%; margin-right:5px; }
 .rdot.on{background:var(--ok);} .rdot.off{background:var(--fail);} .rdot.part{background:var(--warn);}
 
+/* ── DNS baseline (trafik realtime) ── */
+.dns-row { border:1px solid var(--line); border-radius:12px; padding:10px 14px; background:var(--card); }
+.dns-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; }
+.dns-name { font-weight:700; font-size:14px; }
+.dns-name i { color:var(--mut); font-style:normal; font-weight:500; font-size:12px; }
+.dns-lat { font-weight:700; font-size:14px; color:var(--mut); }
+.dns-lat.ok { color:var(--ok); }
+.dns-lat.bad { color:var(--fail); }
+.dns-canvas { width:100%; display:block; }
+
 /* ── Monitor list ── */
 .grid { display:flex; flex-direction:column; gap:12px; }
 .ispcard {
