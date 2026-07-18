@@ -113,6 +113,7 @@ export function makeDb(DB) {
   }
 
   async function getAlertState(isp_id) {
+    await ensureAlertTable();
     const r = await get("SELECT is_down FROM alert_state WHERE isp_id = ?", isp_id);
     return r ? r.is_down : -1;
   }

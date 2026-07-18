@@ -15,6 +15,7 @@ export async function checkHttp(url, timeout = 10000) {
     clearTimeout(to);
     const latency = Date.now() - t;
     const ok = r.status >= 200 && r.status < 400;
+    r.body?.cancel?.();
     return { ok, latency, err: ok ? "" : `HTTP ${r.status}` };
   } catch (e) {
     clearTimeout(to);
@@ -38,7 +39,7 @@ export async function checkStatusPage(url, timeout = 10000) {
   try {
     const r = await fetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
     clearTimeout(to);
-    if (!r.ok) return { ok: true, indicator: "unknown", description: `HTTP ${r.status}`, incident: false };
+    if (!r.ok) { r.body?.cancel?.(); return { ok: true, indicator: "unknown", description: `HTTP ${r.status}`, incident: false }; }
     const j = await r.json();
     const indicator = (j.status && j.status.indicator) || "none";
     const description = (j.status && j.status.description) || "";

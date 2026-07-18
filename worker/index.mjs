@@ -275,9 +275,13 @@ async function scheduled(controller, env, ctx) {
   const db = makeDb(env.DB);
   await ensureSeeded(db);
   const isps = await db.getAllIsps();
-  await Promise.all(isps.map((isp) =>
-    runCheckFor(db, isp, env).catch((e) => console.error("check gagal", isp.name, e.message))
-  ));
+  const BATCH = 5;
+  for (let i = 0; i < isps.length; i += BATCH) {
+    const slice = isps.slice(i, i + BATCH);
+    await Promise.all(slice.map((isp) =>
+      runCheckFor(db, isp, env).catch((e) => console.error("check gagal", isp.name, e.message))
+    ));
+  }
   await evaluateAlerts(db, env);
 }
 
