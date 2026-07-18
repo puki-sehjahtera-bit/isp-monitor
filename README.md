@@ -1,222 +1,120 @@
-# ISP Monitor — Global Network Health (Node.js)
+# ISP Monitor — Global Network Health
 
-Aplikasi monitoring kesehatan ISP di seluruh dunia dengan **ping realtime** dan
-**grafik analitik per cek**. Backend Node.js (Express + Socket.IO + better-sqlite3),
-frontend realtime (Chart.js) lewat WebSocket.
+Monitoring kesehatan ISP di seluruh dunia: **ping + HTTP + status-page resmi**, dicek
+berkala dan ditampilkan realtime di dashboard web.
+
+Arsitektur sekarang (**Cloudflare**, bukan Node/Express):
+
+- **Backend API** = Cloudflare **Worker** (`worker/`) + **D1** (SQLite serverless).
+  Cron tiap 1 menit cek semua ISP, tulis ke D1, eval alert Telegram.
+- **Frontend** = static `public/` di-deploy ke **Cloudflare Pages**.
+  `functions/api/[[path]].js` proxy `/api/*` ke Worker (same-origin, tembus adblock).
+- **Realtime** = dashboard fetch ulang `/api/dashboard` + `/api/history`; tidak pakai
+  WebSocket (Worker gak pegang koneksi long-lived).
 
 Fitur:
-- Ping ICMP ke IP/hostname ISP, **fallback HTTP** kalau ICMP diblokir (cloud).
-- Cek HTTP GET ke endpoint health-check ISP (latency).
-- Status gabungan (combined) per ISP.
-- **Realtime**: tiap cek di-broadcast via WebSocket → tabel & grafik update langsung.
-- Grafik: latensi gabungan rata-rata global (realtime) + grafik latensi per-ISP
-  (ping/http/combined) dari riwayat.
+- Ping ICMP ke IP/hostname ISP, **fallback HTTP** kalau ICMP diblokir.
+- Cek HTTP GET ke endpoint ISP (latency) + **status-page resmi** (incident).
+- Status gabungan (combined) per ISP + breakdown per region/probe.
+- Dashboard web + REST API + badge SVG + laporan user (ping test).
 - Multi-region: probe di banyak lokasi lapor ke 1 central DB (tag region).
-- Dashboard web + REST API (FastAPI-style) + notifikasi Telegram (global-down).
+- Notifikasi Telegram saat ISP down/degraded/recover.
 
 ## Struktur
 
 ```
 isp-monitor/
-├── src/
-│   ├── server.js     # Express + Socket.IO + REST API + static (API server)
-│   ├── worker.js     # Loop monitoring (lokal / probe) + alert global-down
-│   ├── checks.js     # ICMP ping (fallback HTTP)
-│   ├── db.js         # Layer DB (better-sqlite3)
-│   ├── seed.js       # Seed ~19 ISP global nyata
-│   └── probe.js      # Entry probe region (tanpa API server)
-├── public/           # Frontend statis (index.html, app.js, config.js, style.css)
-│   └── config.js     # Pusat config: API_BASE + WS_URL (domain API terpisah)
-├── wrangler.toml     # Deploy frontend ke Cloudflare Pages (static murni)
+├── worker/                 # Backend API (Cloudflare Worker)
+│   ├── index.mjs           # Router REST + cron handler (export default { fetch, scheduled })
+│   ├── db.mjs              # Layer D1 (parameterized queries)
+│   ├── checks.mjs          # ICMP ping (fallback HTTP) + status-page + ASN verify
+│   ├── seed.mjs            # Seed ~21 ISP global (idempoten)
+│   └── schema.sql          # Skema D1
+├── functions/              # Pages Functions (proxy + admin)
+│   ├── api/[[path]].js     # Proxy /api/* -> Worker (env API_WORKER_URL)
+│   └── admin.js            # Panel admin (butuh ADMIN_TOKEN)
+├── public/                 # Frontend statis (index.html, app.js, config.js, style.css, ...)
+│   └── config.js           # API_BASE/WS_URL -> domain frontend (sama origin)
+├── wrangler.worker.toml    # Deploy Worker + binding D1 + cron
+├── wrangler.toml          # Deploy Pages (pages_build_output_dir = public) + [vars]
 ├── package.json
-├── Dockerfile
-├── docker-compose.yml
-├── railway.json
-└── .env.example
+└── test/                   # node --test (cek checks.mjs)
 ```
 
-## Arsitektur (Frontend statis ↔ Backend API terpisah)
-
-Frontend di-deploy ke **Cloudflare Pages** (static, `wrangler.toml` → output `public/`).
-Backend API jalan di server sendiri (**Railway / VPS**) di domain `api.isp-monitor.my.id`.
-
-- `public/config.js` menentukan ke mana frontend kirim data:
-  `API_BASE` (REST) + `WS_URL` (Socket.IO). Ganti sesuai domain kamu.
-- `server.js` sudah pasang CORS (origin dari env `CORS_ORIGINS`, default
-  `https://isp-monitor.my.id`) + Socket.IO CORS ke domain frontend.
-- **Admin panel** (`/admin`) tetap di server API (butuh token + akses tulis),
-  tidak di-deploy ke Pages. Link admin di UI mengarah ke `api.isp-monitor.my.id/admin`.
-
-Deploy frontend:
-```bash
-# Cloudflare Pages (via wrangler, output = folder public/)
-npx wrangler pages deploy public --project-name isp-monitor-frontend
-# atau connect repo di Cloudflare Dashboard, build output = public
-```
-
-Deploy backend (API) terpisah — lihat bagian Railway/Docker di bawah, lalu set:
-```
-CORS_ORIGINS=https://isp-monitor.my.id
-```
-
-## Install (lokal)
+## Setup lokal
 
 ```bash
-cd /home/bahcron/isp-monitor
 npm install
-cp .env.example .env      # edit kalau perlu
-node src/server.js        # http://localhost:8000
+cp .env.example .env        # (opsional, wrangler baca secret/env dari dashboard)
 ```
 
-## Jalankan sebagai service (systemd, lokal/central)
-
-Biarkan monitor nyala terus & auto-start pas boot:
+### 1. Buat + migrasi D1
 
 ```bash
-# central (API + UI):
-sudo cp isp-monitor.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now isp-monitor
-
-# probe region (VPS lain, tanpa API server):
-sudo cp isp-monitor-probe.service /etc/systemd/system/
-sudo systemctl enable --now isp-monitor-probe
+# buat DB (sekali): wrangler d1 create isp-monitor --config wrangler.worker.toml
+# cocokkan database_id di wrangler.worker.toml
+npm run migrate             # wrangler d1 execute ... --file=worker/schema.sql --remote
 ```
-Cek log: `journalctl -u isp-monitor -f`.
 
-## Akses dari HP / publik (Cloudflare Tunnel)
+> `npm run migrate` wajib dijalankan **remote** (`--remote`). `wrangler d1 execute`
+> default ke local SQLite — seed/table di local gak akan kelihatan di Worker.
 
-Biar bisa dibuka dari mana aja (terutama HP di luar LAN) pakai tunnel.
+### 2. Secrets (Worker)
 
-**Quick tunnel (URL berubah tiap restart, gak perlu akun):**
 ```bash
-cloudflared tunnel --url http://localhost:8000
+wrangler secret put ADMIN_TOKEN --config wrangler.worker.toml
+wrangler secret put TG_BOT_TOKEN --config wrangler.worker.toml   # opsional alert
+wrangler secret put TG_CHAT_ID   --config wrangler.worker.toml   # opsional alert
 ```
 
-**Named tunnel (URL TETAP, butuh akun Cloudflare gratis):**
+`API_WORKER_URL` (buat proxy Pages) di-set di `wrangler.toml` → `[vars]`
+(default `https://isp-monitor-api.<subdomain>.workers.dev`, ganti kalau sudah
+punya domain `api.isp-monitor.my.id`).
+
+## Jalankan lokal (dev)
+
 ```bash
-# 1. install binary (contoh Debian/Ubuntu):
-sudo curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-sudo chmod +x /usr/local/bin/cloudflared
-
-# 2. login (interaktif, buka browser untuk OAuth) — sekali saja:
-cloudflared tunnel login
-
-# 3. buat tunnel (isi nama bebas):
-cloudflared tunnel create isp-monitor
-
-# 4. jadikan service (auto-start + restart kalau mati):
-sudo cp cloudflared.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now isp-monitor cloudflared
+npm run dev                 # wrangler dev --config wrangler.worker.toml (local D1)
 ```
-URL tetap: `https://<id-tunnel>.cfargotunnel.com` (atau custom domain lewat
-`cloudflared tunnel route dns isp-monitor namadomain.com`).
 
-> Catatan: kalau pakai systemd untuk server, matikan keepalive cron biar gak
-> dobel: `crontab -e` lalu hapus baris `*/1 * * * * .../keepalive.sh`.
+`functions/` (Pages proxy) butuh `wrangler pages dev` kalau mau test proxy lokal.
 
-## REST API
+## Deploy
+
+```bash
+npm run deploy             # Worker -> https://isp-monitor-api.<subdomain>.workers.dev
+npm run deploy:pages       # Pages  -> https://<project>.pages.dev (lalu custom domain)
+```
+
+- **Custom domain frontend**: Dashboard CF → Pages → `isp-monitor` → Custom domains →
+  add `isp-monitor.my.id` (auto DNS CNAME).
+- **Custom domain API (opsional)**: Worker → Settings → Domains & Routes → Add →
+  `api.isp-monitor.my.id`.
+- Cron jalan otomatis tiap 1 menit setelah deploy (lihat `crons` di wrangler.worker.toml).
+
+## REST API (Worker)
 
 | Method | Endpoint | Keterangan |
 |--------|----------|------------|
-| GET | `/healthz` | Health check |
-| GET | `/isps` | List ISP (`?country=ID&region=Java`) |
-| POST | `/isps` | Tambah ISP (**butuh `ADMIN_TOKEN`**) |
-| GET/PUT/DELETE | `/isps/{id}` | Detail/update/hapus ISP (tulis **butuh `ADMIN_TOKEN`**) |
-| GET | `/dashboard` | Dashboard semua ISP (+ breakdown per region) |
-| GET | `/regions` | List region/probe |
-| GET | `/stats` | Statistik keseluruhan |
-| GET | `/history/{id}` | Riwayat status (`?check_type=ping&limit=300`) |
-| GET | `/export.csv` | Export snapshot semua ISP ke CSV |
-| POST | `/health/{id}` | Trigger cek manual 1 ISP (realtime, **butuh `ADMIN_TOKEN`**) |
-| POST | `/health/all` | Trigger cek manual semua ISP (**butuh `ADMIN_TOKEN`**) |
-| POST | `/report` | Terima laporan probe region (butuh `REPORT_TOKEN`) |
-| POST | `/worker/start` | Start worker background |
+| GET | `/api/healthz` | Health check |
+| GET | `/api/isps` | List ISP (`?country=ID&region=Java`) |
+| POST | `/api/isps` | Tambah ISP (**ADMIN_TOKEN**) |
+| GET/PUT/DELETE | `/api/isps/{id}` | Detail/update/hapus (tulis **ADMIN_TOKEN**) |
+| GET | `/api/dashboard` | Dashboard semua ISP + breakdown region |
+| GET | `/api/stats` | Statistik keseluruhan |
+| GET | `/api/regions` | List region/probe |
+| GET | `/api/history/{id}` | Riwayat (`?range=24h&type=ping`) |
+| GET | `/api/status/{id}` | Uptime cache harian |
+| GET | `/api/verify/{id}` | Verifikasi ASN/routing ISP |
+| GET | `/api/badge/{id}` | Badge SVG status |
+| POST | `/api/report-isp` | Laporan ping dari user |
+| GET | `/api/v1/*` | API publik (**API key** lewat `x-api-key`) |
+| POST | `/api/v1/keys` | Buat API key (**ADMIN_TOKEN**) |
 
-WebSocket: connect ke `/`, event `check` tiap hasil cek `{ispId,name,ping,http,combined,probe,ts}`.
-Client bisa emit `pingNow` `{ispId}` untuk cek instan.
+Cron handler `scheduled()` cek semua ISP tiap menit + eval alert.
 
-## Deploy publik (Railway)
+## Test
 
 ```bash
-# railway CLI
-railway login
-railway link          # pilih projek / init
-railway up            # build via Dockerfile, startCommand node src/server.js
+npm test                   # node --test (test/checks.test.mjs)
 ```
-
-- `railway.json` sudah diset: Dockerfile, port 8000, healthcheck `/healthz`, env
-  `PROBE_REGION=central` + `REPORT_TOKEN`.
-- **Mount volume** ke `/data` biar DB (`isp_monitor.db`) persisten antar deploy.
-- Set `REPORT_TOKEN` (atau biarkan `{{RAILWAY_REPORT_TOKEN}}` dari Railway variable).
-
-Atau Docker lokal:
-```bash
-docker compose up -d --build     # http://<host>:8000
-```
-
-## Multi-region (pemantauan beneran "global")
-
-Satu central = satu titik pandang. Jalankan **probe** di banyak region, semua lapor
-ke **1 central DB**.
-
-```
-region "asia"  ─┐
-region "eu"    ─┼─► POST /report ─► central API ─► DB (tag probe)
-region "us"    ─┘
-central        ─► API + UI (agregasi per region)
-```
-
-**Central** (Railway / server ini): jalanin normal `node src/server.js`. Set
-`REPORT_TOKEN` biar `/report` butuh auth.
-
-**Probe region** (VPS/cloud manapun) — turnkey:
-```bash
-# di mesin probe (setelah code ada di /opt/isp-monitor):
-./install-probe.sh /opt/isp-monitor
-# lalu isi CENTRAL_URL, PROBE_REGION, REPORT_TOKEN, PROBE_ASN, PROBE_LOCATION
-```
-Atau manual:
-```bash
-PROBE_REGION=eu-west \
-CENTRAL_URL=https://<central>.up.railway.app \
-REPORT_TOKEN=<token_yang_sama> \
-PROBE_ASN=7713 \
-PROBE_LOCATION=Europe \
-./run_probe.sh
-```
-Worker GET `/isps` dari central, cek tiap ISP (ping + HTTP + **status-page resmi**),
-lalu POST hasil ke `/report` dengan tag region + metadata `asn`/`location`.
-Tanpa DB lokal.
-
-**Metadata probe** (biar "Per Region" jadi per-ISP nyata): tiap probe lapor
-`PROBE_ASN` + `PROBE_LOCATION`. Dashboard menampilkan ASN tiap region, dan
-`GET /probes` balikin metadata semua probe. Jadi kolom "Per Region" menunjukkan
-mis. `eu-west(AS7713)`. Tambah probe di ASN beda = titik pandang beda = deteksi
-global-down jadi valid.
-
-Lihat per region: kolom "Per Region" di UI, `GET /regions`, `GET /probes`,
-field `regions` di `GET /dashboard` (tiap region punya `asn`/`location`).
-
-## Notifikasi Telegram (alert per-ISP)
-
-Bot kirim pesan per state ISP:
-- 🔴 **DOWN** — gagal di semua region (global-down)
-- 🟡 **DEGRADED** — gagal di sebagian region
-- 🟢 **RECOVERED** — sudah reachable lagi
-
-Set env:
-```
-TG_BOT_TOKEN=...   # dari @BotFather
-TG_CHAT_ID=...
-ALERT_COOLDOWN_MINUTES=30   # anti-spam kalau flap
-```
-Kosong → notifikasi off (cuma log).
-
-## Catatan
-
-- DB: `data/isp_monitor.db` (SQLite, WAL). Semua tulisan lewat central → 1 writer.
-- Interval default: 3 menit, jeda antar ISP 30 dtk. Atur `MONITOR_INTERVAL_MINUTES`.
-- ICMP butuh `ping` (di Docker: `iputils-ping`). Kalau platform blokir ICMP,
-  otomatis fallback ke HTTP latency.

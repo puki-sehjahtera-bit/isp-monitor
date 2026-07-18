@@ -1,16 +1,7 @@
-// Hubungkan ke Server via Socket.IO (otomatis menyesuaikan host)
-// Paksa websocket dulu biar cloudflare gak buffer polling (update realtime).
+// Polling ke API (tanpa socket.io). Laporan komunitas diambil tiap 8 dtk.
 const API_BASE = (window.CONFIG && window.CONFIG.API_BASE) || "";
-const WS_URL = (window.CONFIG && window.CONFIG.WS_URL) || undefined;
-const socket = io(WS_URL, { transports: ["websocket", "polling"] });
 
-socket.on("connect", () => {
-  console.log("Terhubung ke server via Socket.IO");
-});
 
-socket.on("connect_error", (err) => {
-  console.error("Socket connect error:", err.message);
-});
 
 // Mode gelap/terang
 function applyTheme(theme) {
@@ -28,21 +19,39 @@ function toggleTheme() {
   localStorage.setItem("theme", next);
   applyTheme(next);
 }
-socket.on("ping:dashboard", (payload) => {
-  if (payload.type === "INIT_DATA") {
-    window.__lastReports = payload.reports;
-    renderTargets(payload.targets);
-    renderReports(payload.reports);
-  } else if (payload.type === "INTERNAL_MONITOR_UPDATE") {
-    renderTargets(payload.data);
-  } else if (payload.type === "NEW_USER_REPORT") {
-    window.__lastReports = payload.allReports;
-    renderReports(payload.allReports);
-  } else if (payload.type === "REPORTS_CLEARED") {
-    window.__lastReports = [];
-    renderReports([]);
-  }
-});
+async function pollReports() {
+  try {
+    const r = await fetch(`${API_BASE}/api/reports?kategori=all`, { cache: "no-store" });
+    const j = await r.json();
+    const reports = (j.data || []).map((x) => ({ ...x, timestamp: x.created_at }));
+    window.__lastReports = reports;
+    renderReports(reports);
+  } catch (e) { console.warn("gagal poll laporan:", e.message); }
+}
+pollReports();
+setInterval(pollReports, 8000);
+
+// Status Server Global (monitor otomatis) -> ambil dari /api/dashboard
+async function pollTargets() {
+  try {
+    const r = await fetch(`${API_BASE}/api/dashboard`, { cache: "no-store" });
+    const list = await r.json();
+    const targets = (Array.isArray(list) ? list : []).map((isp) => {
+      const st = (isp.recent_status && isp.recent_status[0]) || {};
+      const up = !!st.status;
+      const ping = st.latency_ms != null ? Math.round(st.latency_ms) : null;
+      return {
+        name: isp.name,
+        ip: isp.isp_ip || isp.real_ip || "-",
+        ping,
+        status: up ? "ONLINE" : "OFFLINE",
+      };
+    });
+    renderTargets(targets);
+  } catch (e) { console.warn("gagal poll targets:", e.message); }
+}
+pollTargets();
+setInterval(pollTargets, 30000);
 
 // Hapus semua laporan (butuh token admin)
 async function clearReports() {
@@ -68,7 +77,7 @@ function renderTargets(targets) {
         <span class="text-xs text-gray-500 block">${target.ip}</span>
       </div>
       <div class="text-right">
-        <span class="text-emerald-400 font-mono font-bold">${target.ping} ms</span>
+        <span class="text-emerald-400 font-mono font-bold">${target.ping != null ? target.ping + " ms" : "-"}</span>
         <span class="text-xs px-2 py-0.5 rounded ml-2 ${target.status === "ONLINE" ? "bg-emerald-950 text-emerald-400" : "bg-rose-950 text-rose-400"}">${target.status}</span>
       </div>
     </div>`

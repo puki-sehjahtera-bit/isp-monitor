@@ -10,7 +10,7 @@ export function makeDb(DB) {
 
   function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-  async function getOrCreateIsp({ name, country, region, isp_ip, http_url, order_index = 0, notes, category = "isp", asn = "", real_ip = "", status_url = "" }) {
+  async function getOrCreateIsp({ name, country, region, isp_ip, http_url, order_index = 0, notes, category = "isp", asn = "", real_ip = "", status_url = "" } = {}) {
     const row = await get("SELECT id FROM isp_list WHERE name = ? AND country = ?", name, country);
     if (row) return row.id;
     const info = await run(
@@ -187,7 +187,8 @@ export function makeDb(DB) {
 
   // API keys
   async function createApiKey({ name, rateLimit = 60 }) {
-    const key = "ispm_" + crypto.randomBytes(24).toString("base64url");
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    const key = "ispm_" + [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
     const hash = await hashKey(key);
     await run("INSERT INTO api_keys (key_hash, name, rate_limit) VALUES (?,?,?)", hash, name, rateLimit);
     return { key, name, rateLimit };

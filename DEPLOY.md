@@ -1,70 +1,52 @@
-# Deploy — Frontend Statis (Cloudflare Pages) + Backend API Terpisah
+# Deploy — Frontend (Cloudflare Pages) + Backend (Cloudflare Worker)
 
-Arsitektur akhir:
-- **Frontend**: `isp-monitor.my.id` → Cloudflare Pages (folder `public/`, static murni)
-- **Backend API**: `api.isp-monitor.my.id` → server ini (Node/Express/Socket.IO via tunnel)
-
----
-
-## 1. Backend API — `api.isp-monitor.my.id`
-
-Di server ini (VPS/Railway), pastikan:
-- `server.js` jalan di `:8000` (sudah ada `isp-monitor.service`).
-- `.env` punya `CORS_ORIGINS=https://isp-monitor.my.id`.
-- Cloudflare Tunnel expose `api.isp-monitor.my.id` → `localhost:8000`.
-
-### Tambah hostname api ke tunnel (di mesin lokal, butuh `cloudflared login`)
-```bash
-# di lokal, sudah login cloudflared:
-cloudflared tunnel route dns <nama-tunnel> api.isp-monitor.my.id
-```
-Atau di Cloudflare Dashboard → DNS: tambah `CNAME api.isp-monitor.my.id` → `<id-tunnel>.cfargotunnel.com`.
-
-Tunnel sudah jalan (`cloudflared.service`) akan otomatis serve hostname baru.
-Cek: `curl https://api.isp-monitor.my.id/healthz` → `{"status":"ok",...}`.
-
----
-
-## 2. Frontend — Cloudflare Pages (di mesin lokal, butuh `wrangler login`)
+## 1. Backend API — Worker `isp-monitor-api`
 
 ```bash
-# di lokal, clone / pull repo ini:
-cd isp-monitor
-npm install
-npx wrangler login          # browser OAuth sekali
-npm run deploy:pages        # = wrangler pages deploy public --project-name isp-monitor-frontend
+# sekali: buat D1 (cocokkan database_id di wrangler.worker.toml)
+wrangler d1 create isp-monitor --config wrangler.worker.toml
+
+# migrasi skema ke REMOTE D1 (penting: jangan local)
+npm run migrate          # wrangler d1 execute ... --file=worker/schema.sql --remote
+
+# secrets
+wrangler secret put ADMIN_TOKEN --config wrangler.worker.toml
+wrangler secret put TG_BOT_TOKEN --config wrangler.worker.toml   # opsional
+wrangler secret put TG_CHAT_ID   --config wrangler.worker.toml   # opsional
+
+# deploy
+npm run deploy            # -> https://isp-monitor-api.<subdomain>.workers.dev
 ```
 
-Setelah deploy:
-- Di Cloudflare Dashboard → Pages → project `isp-monitor-frontend` → **Custom domains**
-  → add `isp-monitor.my.id` (Cloudflare otomatis add DNS CNAME).
-- Pastikan `public/config.js` `API_BASE`/`WS_URL` = `https://api.isp-monitor.my.id`
-  (sudah default). Kalau domain beda, edit lalu `npm run deploy:pages` lagi.
+Cron (`* * * * *` di `wrangler.worker.toml`) cek semua ISP tiap menit +
+eval alert Telegram otomatis jalan setelah deploy.
 
----
+Custom domain API (opsional): Worker → Settings → Domains & Routes → Add →
+`api.isp-monitor.my.id`, lalu set `API_WORKER_URL` di `wrangler.toml` ke URL itu
+dan `npm run deploy:pages`.
+
+## 2. Frontend — Cloudflare Pages
+
+```bash
+npm run deploy:pages      # -> https://<project>.pages.dev
+```
+
+Dashboard CF → Pages → `isp-monitor` → Custom domains → add `isp-monitor.my.id`.
+`functions/api/[[path]].js` proxy `/api/*` ke Worker lewat env `API_WORKER_URL`.
+`public/config.js` `API_BASE` = domain frontend (sama origin).
 
 ## 3. Verifikasi
 
 ```bash
-# API reachable + CORS header
-curl -i https://api.isp-monitor.my.id/dashboard \
-  -H "Origin: https://isp-monitor.my.id" | grep -i "access-control"
-
-# Frontend
-curl -s https://isp-monitor.my.id/ | grep -o "config.js"
-curl -s https://isp-monitor.my.id/config.js
+curl https://isp-monitor.my.id/api/healthz     # {"status":"ok",...}
+curl https://isp-monitor.my.id/api/dashboard    # 21 ISP
 ```
 
-Buka `https://isp-monitor.my.id` di browser → DevTools Network:
-- request `/dashboard`, `/history`, WS ke `api.isp-monitor.my.id` (status 200, 101).
-- kolom "Per Region" / tabel ISP update realtime.
+Buka `https://isp-monitor.my.id` → dashboard + tabel ISP update dari cron.
 
----
+## Catatan
 
-## 4. Catatan
-
-- **Admin panel** (`/admin`) TIDAK di-deploy ke Pages. Akses di
-  `https://api.isp-monitor.my.id/admin` (butuh `ADMIN_TOKEN`).
-- Jangan commit `.env`, `.cf-tunnel-token`, `*.db`.
-- Kalau ganti domain frontend, update `CORS_ORIGINS` di `.env` server API + `config.js`.
-- `sw.js` (service worker) di Pages tetap jalan untuk PWA/offline shell.
+- Tidak ada lagi `server.js`, systemd, atau cloudflared tunnel — semua di
+  Cloudflare (Worker + D1 + Pages).
+- Admin panel (`/admin`, butuh `ADMIN_TOKEN`) di-serve Pages via `functions/admin.js`.
+- Jangan commit `node_modules`, `.wrangler/`.

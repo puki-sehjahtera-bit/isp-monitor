@@ -1,7 +1,5 @@
 "use strict";
 const API_BASE = (window.CONFIG && window.CONFIG.API_BASE) || "";
-const WS_URL = (window.CONFIG && window.CONFIG.WS_URL) || undefined;
-const socket = io(WS_URL, { timeout: 20000 });
 const store = {};
 window.onerror = (m) => console.error("JS:", m);
 let openId = null, detailChart = null, globalChart = null, compChartA = null, compChartB = null;
@@ -271,9 +269,9 @@ async function loadDashboard() {
       `).join("");
     }
     const [dash, regions, stats] = await Promise.all([
-      fetch(`${API_BASE}/dashboard`).then((r) => r.json()),
-      fetch(`${API_BASE}/regions`).then((r) => r.json()),
-      fetch(`${API_BASE}/stats`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/dashboard`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/regions`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/stats`).then((r) => r.json()),
     ]);
     dash.forEach((d) => {
       const prev = store[d.id];
@@ -282,10 +280,10 @@ async function loadDashboard() {
         const r = d.recent_status[0];
         latest.combined = { ok: !!r.status, latency: r.latency_ms };
       }
-      store[d.id] = {
-        ...d, latest,
-        spark: prev?.spark || [],
-      };
+      const spark = prev?.spark || [];
+      const lat = latest.combined?.latency;
+      if (lat != null) { spark.push(lat); if (spark.length > 30) spark.shift(); }
+      store[d.id] = { ...d, latest, spark };
     });
     $("#st-online-total") && ($("#st-online-total").textContent = stats.total_isps);
     renderSummary(stats);
@@ -293,8 +291,10 @@ async function loadDashboard() {
     renderRegionGroups();
     renderTable();
     renderStatusBanner();
+    setLive(true);
   } catch (e) {
     console.error("dashboard gagal:", e);
+    setLive(false);
     const grid = $("#grid");
     if (grid && grid.querySelector(".loading")) {
       grid.innerHTML = '<div class="loading" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--fail)">❌ Gagal memuat. Coba lagi 3 detik…</div>';
@@ -302,6 +302,13 @@ async function loadDashboard() {
     toast("Gagal muat data — coba lagi", "err");
     setTimeout(loadDashboard, 3000);
   }
+}
+
+function setLive(on) {
+  const p = $("#live-dot"); if (!p) return;
+  const wrap = p.parentElement;
+  if (on) { wrap.classList.remove("off"); p.classList.add("pulse"); $("#live-txt").textContent = "LIVE"; }
+  else { wrap.classList.add("off"); p.classList.remove("pulse"); $("#live-txt").textContent = "TIDAK TERHUBUNG"; }
 }
 
 function renderHero() {
@@ -517,53 +524,14 @@ function drawSpark(id) {
   ctx.lineWidth = 1.6; ctx.stroke();
 }
 
-// ── Realtime ──
-socket.on("dashboard", () => loadDashboard());
-socket.on("connect", () => {
-  const p = $("#live-dot");
-  p.parentElement.classList.remove("off");
-  p.classList.add("pulse");
-  $("#live-txt").textContent = "LIVE";
-  toast("Terhubung", "ok");
-});
-socket.on("disconnect", () => {
-  const l = $("#live-dot").parentElement;
-  l.classList.add("off");
-  $("#live-dot").classList.remove("pulse");
-  $("#live-txt").textContent = "TIDAK TERHUBUNG";
-  toast("Koneksi terputus — reconnect…", "warn");
-});
-
-socket.on("check", (p) => {
-  const s = store[p.ispId]; if (!s) return;
-  const wasOnline = s.latest?.combined?.ok ?? false;
-  s.latest = s.latest || {};
-  s.latest.combined = p.combined || s.latest.combined;
-  if (p.ping) s.latest.ping = p.ping;
-  if (p.http) s.latest.http = p.http;
-  if (p.status) s.official = p.status;
-  s.regions = s.regions || {};
-  s.regions[p.probe] = { status: !!(p.combined?.ok ?? p.ping?.ok), latency: p.combined?.latency ?? p.ping?.latency };
-  if (p.combined?.ok && p.combined.latency != null) {
-    s.spark = s.spark || [];
-    s.spark.push(p.combined.latency);
-    if (s.spark.length > 30) s.spark.shift();
-  }
-  const nowOnline = p.combined?.ok ?? false;
-  if (wasOnline !== nowOnline) {
-    const status = nowOnline ? "up" : "down";
-    const latency = p.combined?.latency;
-    alertIsp(s.name, status, latency);
-  }
-  updateRow(p.ispId);
-  drawSpark(p.ispId);
-  flashRow(p.ispId);
-  pushGlobal();
-  renderSummary();
-  renderHero();
-  renderRegionGroups();
-  if (openId === p.ispId) pushDetail(p);
-});
+// ── Realtime (polling tiap 15 dtk, bukan socket.io) ──
+let pollTimer = null;
+async function pollDashboard() {
+  try { await loadDashboard(); }
+  catch (e) { setLive(false); }
+}
+if (pollTimer) clearInterval(pollTimer);
+pollTimer = setInterval(pollDashboard, 15000);
 
 function pushGlobal() {
   const on = Object.values(store).filter((s) => s.latest?.combined?.ok && s.latest.combined.latency != null);
@@ -654,7 +622,11 @@ function pushDetail(p) {
   $("#modal-live").textContent = `Live @ ${new Date().toLocaleTimeString()} · ping ${fmt(p.ping?.latency)} · http ${fmt(p.http?.latency)}`;
 }
 window.openDetail = openDetail;
-window.manual = (id) => socket.emit("pingNow", { ispId: id });
+window.manual = (id) => {
+  fetch(`${API_BASE}/api/isps/${id}/check`, { method: "POST" })
+    .then(() => loadDashboard())
+    .catch(() => toast("Gagal cek ulang", "err"));
+};
 $("#modal-close").onclick = () => { $("#modal").classList.add("hidden"); openId = null; };
 document.querySelectorAll(".tab").forEach((t) => {
   t.onclick = () => {

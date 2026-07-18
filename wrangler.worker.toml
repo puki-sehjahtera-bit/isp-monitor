@@ -1,5 +1,5 @@
 name = "isp-monitor-api"
-main = "worker/index.js"
+main = "worker/index.mjs"
 compatibility_date = "2024-09-23"
 
 # Binding D1 (buat via: wrangler d1 create isp-monitor)

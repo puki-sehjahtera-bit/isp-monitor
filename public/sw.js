@@ -17,7 +17,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   // Jangan cache API / realtime socket — selalu lewat network.
-  if (e.request.url.includes("/api") || e.request.url.includes("/socket.io") || e.request.url.includes("/events")) {
+  if (e.request.url.includes("/api") || e.request.url.includes("/events")) {
     return fetch(e.request).catch(() => new Response(null, { status: 503 }));
   }
   // Navigasi: network-first, fallback ke cache kalau offline.

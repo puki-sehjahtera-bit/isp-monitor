@@ -1,5 +1,4 @@
-// Proxy /admin ke backend — same-origin (pakai token seperti biasa).
+// /admin -> static admin.html (Pages sudah serve file statis).
 export async function onRequest(context) {
-  const target = "https://api.isp-monitor.my.id/admin";
-  return fetch(target, context.request);
+  return Response.redirect(new URL("/admin.html", context.request.url).href, 302);
 }
