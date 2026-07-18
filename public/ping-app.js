@@ -48,19 +48,22 @@ async function loadUserTargets() {
 }
 
 async function pingTargetUser(isp) {
-  let target = isp.isp_ip ? `http://${isp.isp_ip}` : (isp.http_url || "");
-  if (!target) target = "https://1.1.1.1";
-  const start = performance.now();
-  try {
-    await fetch(target, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
-    return { ok: true, ms: Math.round(performance.now() - start) };
-  } catch (_) {
+  // IP: https dulu (8.8.8.8 gak layani http), fallback http. Konsisten dgn baseline.
+  const tries = [];
+  if (isp.isp_ip) { tries.push(`https://${isp.isp_ip}`); tries.push(`http://${isp.isp_ip}`); }
+  if (isp.http_url) tries.push(isp.http_url);
+  for (const t of tries) {
+    const start = performance.now();
     try {
-      const s2 = performance.now();
-      await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
-      return { ok: false, ms: Math.round(performance.now() - s2), ref: true };
-    } catch (__) { return { ok: false, ms: 0 }; }
+      await fetch(t, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
+      return { ok: true, ms: Math.round(performance.now() - start) };
+    } catch (_) { /* coba berikutnya */ }
   }
+  try {
+    const s2 = performance.now();
+    await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(TARGET_TIMEOUT) });
+    return { ok: false, ms: Math.round(performance.now() - s2), ref: true };
+  } catch (__) { return { ok: false, ms: 0 }; }
 }
 
 async function runUserTargets() {

@@ -68,23 +68,25 @@ async function loadIsps() {
 // Pakai Cloudflare edge (1.1.1.1) sebagai baseline + target http_url ISP.
 // no-cors: kita gak baca body, cuma ukur RTT sampai response tiba.
 async function pingOne(isp) {
-  // Prioritas: isp_ip (kalau ada) -> http_url -> fallback Cloudflare edge
-  let target = isp.isp_ip ? `http://${isp.isp_ip}` : (isp.http_url || "");
-  if (!target) target = "https://1.1.1.1";
-  const start = performance.now();
-  try {
-    await fetch(target, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
-    return { ok: true, ms: Math.round(performance.now() - start) };
-  } catch (e) {
-    // gagal ke target ISP -> coba Cloudflare edge sebagai fallback reference
+  // Untuk IP: coba https dulu (8.8.8.8 gak layani http), fallback http.
+  // Supaya angka konsisten dgn baseline DNS (https://1.1.1.1 / 8.8.8.8).
+  const tries = [];
+  if (isp.isp_ip) { tries.push(`https://${isp.isp_ip}`); tries.push(`http://${isp.isp_ip}`); }
+  if (isp.http_url) tries.push(isp.http_url);
+  for (const t of tries) {
+    const start = performance.now();
     try {
-      const s2 = performance.now();
-      await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
-      // target ISP gagal, tapi internet user hidup -> unreachable ke target spesifik
-      return { ok: false, ms: Math.round(performance.now() - s2), err: e.name, ref: true };
-    } catch (e2) {
-      return { ok: false, ms: 0, err: e2.name };
-    }
+      await fetch(t, { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
+      return { ok: true, ms: Math.round(performance.now() - start) };
+    } catch (_) { /* coba target berikutnya */ }
+  }
+  // semua target ISP gagal -> cek apakah internet user hidup (Cloudflare edge)
+  try {
+    const s2 = performance.now();
+    await fetch("https://1.1.1.1", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(PING_TIMEOUT) });
+    return { ok: false, ms: Math.round(performance.now() - s2), ref: true };
+  } catch (__) {
+    return { ok: false, ms: 0 };
   }
 }
 
