@@ -36,7 +36,9 @@ async function pollTargets() {
   try {
     const r = await fetch(`${API_BASE}/api/dashboard`, { cache: "no-store" });
     const list = await r.json();
-    const targets = (Array.isArray(list) ? list : []).map((isp) => {
+    const targets = (Array.isArray(list) ? list : [])
+      .filter((isp) => isp.country && isp.country !== "ID")
+      .map((isp) => {
       const st = (isp.recent_status && isp.recent_status[0]) || {};
       const up = !!st.status;
       const ping = st.latency_ms != null ? Math.round(st.latency_ms) : null;
