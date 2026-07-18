@@ -1,0 +1,20 @@
+name = "isp-monitor-api"
+main = "worker/index.js"
+compatibility_date = "2024-09-23"
+
+# Binding D1 (buat via: wrangler d1 create isp-monitor)
+[[d1_databases]]
+binding = "DB"
+database_name = "isp-monitor"
+database_id = "25dfd844-b83d-4956-9263-33f3eba464e5"
+
+# Cron: cek semua ISP tiap 1 menit
+[triggers]
+crons = ["* * * * *"]
+
+# Env vars publik
+[vars]
+PROBE_REGION = "cf"
+
+# Secrets (set via: wrangler secret put ADMIN_TOKEN --config wrangler.worker.toml, dst):
+#   ADMIN_TOKEN, TG_BOT_TOKEN, TG_CHAT_ID
