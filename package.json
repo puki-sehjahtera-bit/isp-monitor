@@ -1,15 +1,12 @@
 {
   "name": "isp-monitor",
   "version": "2.0.0",
-  "description": "ISP Monitor — Global ISP Network Health (Cloudflare Workers + D1 + Pages)",
+  "description": "ISP Monitor — Laptop self-host (Docker)",
   "type": "commonjs",
   "main": "worker/index.mjs",
   "scripts": {
-    "dev": "wrangler dev --config wrangler.worker.toml",
-    "deploy": "wrangler deploy --config wrangler.worker.toml",
-    "deploy:pages": "wrangler pages deploy public --project-name isp-monitor",
-    "migrate": "wrangler d1 execute isp-monitor --remote --file=worker/schema.sql --config wrangler.worker.toml",
-    "test": "node --test"
+    "test": "node --test",
+    "start": "node worker/server.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -18,7 +15,5 @@
     "better-sqlite3": "^11.7.0",
     "node-cron": "^3.0.3"
   },
-  "devDependencies": {
-    "wrangler": "^4.112.0"
-  }
+  "devDependencies": {}
 }
