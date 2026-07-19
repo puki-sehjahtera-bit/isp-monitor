@@ -26,7 +26,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --url http://app:3000
+    network_mode: host
+    command: tunnel --url http://localhost:3000
     depends_on:
       - app
 
