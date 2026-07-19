@@ -10,7 +10,7 @@ database_id = "25dfd844-b83d-4956-9263-33f3eba464e5"
 
 # Cron: cek semua ISP tiap 1 menit
 [triggers]
-crons = ["* * * * *"]
+crons = ["*/10 * * * *"]
 
 # Env vars publik
 [vars]

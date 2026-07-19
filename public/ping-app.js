@@ -29,7 +29,7 @@ async function pollReports() {
   } catch (e) { console.warn("gagal poll laporan:", e.message); }
 }
 pollReports();
-setInterval(pollReports, 8000);
+setInterval(pollReports, 30000);
 
 // Monitor dari browser user (user-side), bukan server cron
 const TARGET_TIMEOUT = 4000;
@@ -82,7 +82,7 @@ async function runUserTargets() {
   }));
 }
 runUserTargets();
-setInterval(runUserTargets, 10000);
+setInterval(runUserTargets, 30000);
 
 // Hapus semua laporan (butuh token admin)
 async function clearReports() {

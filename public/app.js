@@ -530,8 +530,8 @@ async function pollDashboard() {
   try { await loadDashboard(); }
   catch (e) { setLive(false); }
 }
-if (pollTimer) clearInterval(pollTimer);
-pollTimer = setInterval(pollDashboard, 15000);
+  if (pollTimer) clearInterval(pollTimer);
+pollTimer = setInterval(pollDashboard, 60000);
 
 function pushGlobal() {
   const on = Object.values(store).filter((s) => s.latest?.combined?.ok && s.latest.combined.latency != null);
@@ -760,4 +760,3 @@ if (themeBtn) themeBtn.addEventListener("click", () => {
 loadAffiliates();
 initGlobalChart();
 loadDashboard();
-setInterval(loadDashboard, 15000);

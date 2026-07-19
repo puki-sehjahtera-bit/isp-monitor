@@ -24,5 +24,14 @@ export async function onRequest(context) {
 
   const base = context.env.API_WORKER_URL || FALLBACK;
   const target = base.replace(/\/+$/, "") + url.pathname + url.search;
-  return fetch(target, context.request);
+  const res = await fetch(target, context.request);
+  // Cache response GET di edge Cloudflare (shared) 60dtk -> hemat quota Workers:
+  // N visitor dalam 60dtk cuma invoke fungsi 1x, sisanya dilayani dari cache.
+  // POST (check/lapor) tetap no-cache.
+  if (context.request.method === "GET") {
+    const h = new Headers(res.headers);
+    h.set("cache-control", "public, max-age=60");
+    return new Response(res.body, { status: res.status, headers: h });
+  }
+  return res;
 }
