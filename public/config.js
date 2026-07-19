@@ -1,7 +1,6 @@
-// Konfigurasi pemisahan Frontend (static) <-> Backend (API terpisah)
-// Ganti nilai di bawah sesuai domain deploy kamu.
+// Same-origin API & WebSocket. Relative = origin server.
+// Pas docker: diserve bareng sama Node server, gak perlu URL absolut.
 window.CONFIG = {
-  // Origin API (REST + WebSocket). Tanpa trailing slash.
-  API_BASE: "https://isp-monitor.my.id",
-  WS_URL: "https://isp-monitor.my.id"
+  API_BASE: "",
+  WS_URL: ""
 };

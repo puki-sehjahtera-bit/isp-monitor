@@ -1,0 +1,34 @@
+# Jalankan: docker compose up -d
+# Tunnel URL cetak dari log cloudflared: docker compose logs tunnel
+#
+# Untuk tunnel permanen (custom domain):
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create isp-monitor
+#   3. Ganti command tunnel di bawah --name & --url
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-changeme}
+      - CRON_SCHEDULE=${CRON_SCHEDULE:-*/10 * * * *}
+      - PROBE_REGION=${PROBE_REGION:-cf}
+      # TG_BOT_TOKEN & TG_CHAT_ID opsional (alert Telegram)
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
+      - TG_CHAT_ID=${TG_CHAT_ID:-}
+    volumes:
+      - isp-monitor-data:/app/data
+
+  # Tunnel gratis cloudflared (quick tunnel — URL random tiap restart).
+  # Ganti command dengan tunnel named untuk URL tetap.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --url http://app:3000
+    depends_on:
+      - app
+
+volumes:
+  isp-monitor-data:
